@@ -21,11 +21,16 @@ type ModelCheckResult = RequiredModelFile & {
 
 type Props = {
   onReady: () => void;
+  autoContinue?: boolean;
 };
 
-export default function ModelCheckScreen({ onReady }: Props) {
+export default function ModelCheckScreen({
+  onReady,
+  autoContinue = true,
+}: Props) {
   const [isChecking, setIsChecking] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [downloadStatus, setDownloadStatus] = useState('');
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [results, setResults] = useState<ModelCheckResult[]>([]);
@@ -37,6 +42,10 @@ export default function ModelCheckScreen({ onReady }: Props) {
   const downloadableMissingFiles = missingRequiredFiles.filter(
     file => file.downloadUrl && file.downloadUrl.trim().length > 0
   );
+
+  const existingFiles = results.filter(file => file.exists);
+
+  const isBusy = isChecking || isDownloading || isDeleting;
 
   const formatSize = (size?: number) => {
     if (!size) return '-';
@@ -82,7 +91,7 @@ export default function ModelCheckScreen({ onReady }: Props) {
         .filter(file => file.required)
         .every(file => file.exists);
 
-      if (allRequiredFilesExist) {
+      if (allRequiredFilesExist && autoContinue) {
         onReady();
       }
     } catch (error) {
@@ -91,7 +100,7 @@ export default function ModelCheckScreen({ onReady }: Props) {
     } finally {
       setIsChecking(false);
     }
-  }, [onReady]);
+  }, [autoContinue, onReady]);
 
   useEffect(() => {
     checkModels();
@@ -202,6 +211,68 @@ export default function ModelCheckScreen({ onReady }: Props) {
     }
   };
 
+  const deleteAllModels = async () => {
+    Alert.alert(
+      'Delete models',
+      'Do you want to delete all downloaded model files?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setIsDeleting(true);
+
+            try {
+              const dirInfo = await FileSystem.getInfoAsync(MODEL_DIRECTORY);
+
+              if (dirInfo.exists) {
+                await FileSystem.deleteAsync(MODEL_DIRECTORY, {
+                  idempotent: true,
+                });
+              }
+
+              await FileSystem.makeDirectoryAsync(MODEL_DIRECTORY, {
+                intermediates: true,
+              });
+
+              setDownloadStatus('');
+              setDownloadProgress(0);
+
+              await checkModels();
+
+              Alert.alert('Deleted', 'All model files have been deleted.');
+            } catch (error) {
+              console.error(error);
+              Alert.alert('Error', 'Could not delete model files.');
+            } finally {
+              setIsDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const continueToHome = () => {
+    const allRequiredFilesExist = results
+      .filter(file => file.required)
+      .every(file => file.exists);
+
+    if (!allRequiredFilesExist) {
+      Alert.alert(
+        'Models missing',
+        'Please download all required model files first.'
+      );
+      return;
+    }
+
+    onReady();
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Biilang</Text>
@@ -226,13 +297,18 @@ export default function ModelCheckScreen({ onReady }: Props) {
                 <View key={file.key} style={styles.fileItem}>
                   <View style={styles.fileHeader}>
                     <Text style={styles.fileName}>{file.name}</Text>
+
                     <Text
                       style={[
                         styles.badge,
                         file.exists ? styles.readyBadge : styles.missingBadge,
                       ]}
                     >
-                      {file.exists ? 'Ready' : file.required ? 'Missing' : 'Optional'}
+                      {file.exists
+                        ? 'Ready'
+                        : file.required
+                          ? 'Missing'
+                          : 'Optional'}
                     </Text>
                   </View>
 
@@ -246,6 +322,10 @@ export default function ModelCheckScreen({ onReady }: Props) {
 
                   <Text style={styles.fileMeta}>
                     Size: {formatSize(file.size)}
+                  </Text>
+
+                  <Text style={styles.fileMeta} numberOfLines={3}>
+                    Path: {file.localPath}
                   </Text>
                 </View>
               ))}
@@ -282,10 +362,10 @@ export default function ModelCheckScreen({ onReady }: Props) {
                 <Pressable
                   style={[
                     styles.downloadButton,
-                    isDownloading && styles.disabledButton,
+                    isBusy && styles.disabledButton,
                   ]}
                   onPress={downloadRequiredModels}
-                  disabled={isDownloading}
+                  disabled={isBusy}
                 >
                   <Text style={styles.downloadButtonText}>
                     {isDownloading
@@ -297,16 +377,28 @@ export default function ModelCheckScreen({ onReady }: Props) {
             )}
 
             <Pressable
-              style={[styles.button, isDownloading && styles.disabledButton]}
+              style={[styles.button, isBusy && styles.disabledButton]}
               onPress={checkModels}
-              disabled={isDownloading}
+              disabled={isBusy}
             >
               <Text style={styles.buttonText}>Check Again</Text>
             </Pressable>
 
+            {existingFiles.length > 0 && (
+              <Pressable
+                style={[styles.deleteButton, isBusy && styles.disabledButton]}
+                onPress={deleteAllModels}
+                disabled={isBusy}
+              >
+                <Text style={styles.deleteButtonText}>
+                  {isDeleting ? 'Deleting...' : 'Delete Models'}
+                </Text>
+              </Pressable>
+            )}
+
             {missingRequiredFiles.length === 0 && (
-              <Pressable style={styles.continueButton} onPress={onReady}>
-                <Text style={styles.continueButtonText}>Continue</Text>
+              <Pressable style={styles.continueButton} onPress={continueToHome}>
+                <Text style={styles.continueButtonText}>Continue to Chat</Text>
               </Pressable>
             )}
           </>
@@ -455,6 +547,17 @@ const styles = StyleSheet.create({
   },
   downloadButtonText: {
     color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  deleteButton: {
+    backgroundColor: '#fee2e2',
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    color: '#991b1b',
     fontSize: 16,
     fontWeight: '800',
   },

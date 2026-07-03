@@ -1,12 +1,6 @@
 import ModelCheckScreen from '@/components/ModelCheckScreen';
 import { generateLocalAiReply } from '@/services/localAiService';
-import {
-  RecordingPresets,
-  requestRecordingPermissionsAsync,
-  setAudioModeAsync,
-  useAudioRecorder,
-  useAudioRecorderState,
-} from 'expo-audio';
+import { Audio } from 'expo-av';
 import React, { useCallback, useRef, useState } from 'react';
 import {
   Alert,
@@ -42,9 +36,13 @@ const createInitialMessages = (): Message[] => [
 
 export default function HomeScreen() {
   const [isModelReady, setIsModelReady] = useState(false);
+  const [isSettingsMode, setIsSettingsMode] = useState(false);
 
   const [messages, setMessages] = useState<Message[]>(createInitialMessages());
   const [inputText, setInputText] = useState('');
+
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
 
   const [isAiThinking, setIsAiThinking] = useState(false);
 
@@ -52,10 +50,6 @@ export default function HomeScreen() {
   const [showScrollButton, setShowScrollButton] = useState(false);
 
   const scrollViewRef = useRef<ScrollView | null>(null);
-
-  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const recorderState = useAudioRecorderState(audioRecorder);
-  const isRecording = recorderState.isRecording;
 
   const createMessage = (
     role: 'ai' | 'user',
@@ -133,7 +127,7 @@ export default function HomeScreen() {
 
       replaceMessageText(
         thinkingMessage.id,
-        'Sorry, I could not load the local AI model. Please check the model file and try again.'
+        'Sorry, I could not load the local AI model. Please check the model file in Settings and try again.'
       );
     } finally {
       setIsAiThinking(false);
@@ -157,20 +151,26 @@ export default function HomeScreen() {
     try {
       if (isAiThinking) return;
 
-      const permission = await requestRecordingPermissionsAsync();
+      const permission = await Audio.requestPermissionsAsync();
 
       if (!permission.granted) {
         Alert.alert('Microphone permission', 'Please allow microphone access.');
         return;
       }
 
-      await setAudioModeAsync({
-        allowsRecording: true,
-        playsInSilentMode: true,
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
       });
 
-      await audioRecorder.prepareToRecordAsync();
-      audioRecorder.record();
+      const result = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+
+      setRecording(result.recording);
+      setIsRecording(true);
     } catch (error) {
       console.error(error);
       Alert.alert('Error', 'Could not start recording.');
@@ -179,13 +179,18 @@ export default function HomeScreen() {
 
   const stopRecording = async () => {
     try {
-      await audioRecorder.stop();
+      if (!recording) return;
 
-      const uri = audioRecorder.uri;
+      await recording.stopAndUnloadAsync();
 
-      await setAudioModeAsync({
-        allowsRecording: false,
-        playsInSilentMode: true,
+      const uri = recording.getURI();
+
+      setRecording(null);
+      setIsRecording(false);
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
       });
 
       console.log('Recorded audio uri:', uri);
@@ -204,6 +209,9 @@ export default function HomeScreen() {
     } catch (error) {
       console.error(error);
       Alert.alert('Error', 'Could not stop recording.');
+
+      setRecording(null);
+      setIsRecording(false);
     }
   };
 
@@ -219,13 +227,15 @@ export default function HomeScreen() {
 
   const clearConversation = async () => {
     try {
-      if (isRecording) {
-        await audioRecorder.stop();
+      if (recording) {
+        await recording.stopAndUnloadAsync();
       }
     } catch (error) {
       console.error(error);
     }
 
+    setRecording(null);
+    setIsRecording(false);
     setIsAiThinking(false);
     setMessages(createInitialMessages());
     setInputText('');
@@ -233,6 +243,22 @@ export default function HomeScreen() {
     setTimeout(() => {
       scrollToBottom(false);
     }, 80);
+  };
+
+  const openSettings = async () => {
+    try {
+      if (recording) {
+        await recording.stopAndUnloadAsync();
+      }
+    } catch (error) {
+      console.error(error);
+    }
+
+    setRecording(null);
+    setIsRecording(false);
+    setIsAiThinking(false);
+    setIsSettingsMode(true);
+    setIsModelReady(false);
   };
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -262,7 +288,9 @@ export default function HomeScreen() {
   if (!isModelReady) {
     return (
       <ModelCheckScreen
+        autoContinue={!isSettingsMode}
         onReady={() => {
+          setIsSettingsMode(false);
           setIsModelReady(true);
         }}
       />
@@ -289,9 +317,15 @@ export default function HomeScreen() {
           </Text>
         </View>
 
-        <Pressable style={styles.clearButton} onPress={clearConversation}>
-          <Text style={styles.clearButtonText}>Clear</Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable style={styles.settingsButton} onPress={openSettings}>
+            <Text style={styles.settingsButtonText}>Settings</Text>
+          </Pressable>
+
+          <Pressable style={styles.clearButton} onPress={clearConversation}>
+            <Text style={styles.clearButtonText}>Clear</Text>
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.chatWrapper}>
@@ -450,6 +484,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   title: {
     fontSize: 28,
     fontWeight: '900',
@@ -460,9 +499,20 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginTop: 2,
   },
+  settingsButton: {
+    backgroundColor: '#dbeafe',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 999,
+  },
+  settingsButtonText: {
+    color: '#1d4ed8',
+    fontSize: 14,
+    fontWeight: '800',
+  },
   clearButton: {
     backgroundColor: '#f3f4f6',
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 9,
     borderRadius: 999,
   },

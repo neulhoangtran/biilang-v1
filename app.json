@@ -47,10 +47,9 @@
         }
       ],
       [
-        "expo-audio",
+        "expo-av",
         {
-          "microphonePermission": "Allow Biilang to access your microphone so you can practice speaking English.",
-          "recordAudioAndroid": true
+          "microphonePermission": "Allow Biilang to access your microphone so you can practice speaking English."
         }
       ]
     ],
