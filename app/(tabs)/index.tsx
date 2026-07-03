@@ -1,98 +1,626 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import ModelCheckScreen from '@/components/ModelCheckScreen';
+import { generateLocalAiReply } from '@/services/localAiService';
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
+import React, { useCallback, useRef, useState } from 'react';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+type Message = {
+  id: string;
+  role: 'ai' | 'user';
+  text: string;
+  createdAt: number;
+  type?: 'text' | 'voice' | 'system';
+};
+
+const createInitialMessages = (): Message[] => [
+  {
+    id: 'welcome-1',
+    role: 'ai',
+    text: 'Hi! I am your English speaking partner. You can type or use the microphone to talk with me.',
+    createdAt: Date.now(),
+    type: 'text',
+  },
+];
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const [isModelReady, setIsModelReady] = useState(false);
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  const [messages, setMessages] = useState<Message[]>(createInitialMessages());
+  const [inputText, setInputText] = useState('');
+
+  const [isAiThinking, setIsAiThinking] = useState(false);
+
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+
+  const scrollViewRef = useRef<ScrollView | null>(null);
+
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(audioRecorder);
+  const isRecording = recorderState.isRecording;
+
+  const createMessage = (
+    role: 'ai' | 'user',
+    text: string,
+    type: 'text' | 'voice' | 'system' = 'text'
+  ): Message => {
+    return {
+      id: `${role}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      role,
+      text,
+      createdAt: Date.now(),
+      type,
+    };
+  };
+
+  const scrollToBottom = useCallback((animated = true) => {
+    requestAnimationFrame(() => {
+      scrollViewRef.current?.scrollToEnd({ animated });
+      setShowScrollButton(false);
+      setIsAtBottom(true);
+    });
+  }, []);
+
+  const appendMessages = useCallback(
+    (newMessages: Message[]) => {
+      setMessages(prev => [...prev, ...newMessages]);
+
+      if (isAtBottom) {
+        setTimeout(() => {
+          scrollToBottom(true);
+        }, 80);
+      } else {
+        setShowScrollButton(true);
+      }
+    },
+    [isAtBottom, scrollToBottom]
+  );
+
+  const replaceMessageText = (messageId: string, text: string) => {
+    setMessages(prev =>
+      prev.map(message =>
+        message.id === messageId
+          ? {
+              ...message,
+              text,
+            }
+          : message
+      )
+    );
+
+    if (isAtBottom) {
+      setTimeout(() => {
+        scrollToBottom(true);
+      }, 80);
+    } else {
+      setShowScrollButton(true);
+    }
+  };
+
+  const sendToLocalAi = async (text: string) => {
+    const thinkingMessage = createMessage('ai', 'Thinking...', 'system');
+
+    appendMessages([thinkingMessage]);
+    setIsAiThinking(true);
+
+    try {
+      const reply = await generateLocalAiReply(text);
+
+      replaceMessageText(
+        thinkingMessage.id,
+        reply || 'Can you tell me more?'
+      );
+    } catch (error) {
+      console.error(error);
+
+      replaceMessageText(
+        thinkingMessage.id,
+        'Sorry, I could not load the local AI model. Please check the model file and try again.'
+      );
+    } finally {
+      setIsAiThinking(false);
+    }
+  };
+
+  const sendTextMessage = async () => {
+    const text = inputText.trim();
+
+    if (!text || isAiThinking || isRecording) return;
+
+    const userMessage = createMessage('user', text);
+
+    setInputText('');
+    appendMessages([userMessage]);
+
+    await sendToLocalAi(text);
+  };
+
+  const startRecording = async () => {
+    try {
+      if (isAiThinking) return;
+
+      const permission = await requestRecordingPermissionsAsync();
+
+      if (!permission.granted) {
+        Alert.alert('Microphone permission', 'Please allow microphone access.');
+        return;
+      }
+
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
+
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'Could not start recording.');
+    }
+  };
+
+  const stopRecording = async () => {
+    try {
+      await audioRecorder.stop();
+
+      const uri = audioRecorder.uri;
+
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      });
+
+      console.log('Recorded audio uri:', uri);
+
+      const userVoiceMessage = createMessage(
+        'user',
+        'Voice message recorded. Speech-to-text will be connected in the next step.',
+        'voice'
+      );
+
+      appendMessages([userVoiceMessage]);
+
+      await sendToLocalAi(
+        'The user sent a voice message. Speech-to-text is not connected yet. Ask the user to type or wait for voice transcription.'
+      );
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'Could not stop recording.');
+    }
+  };
+
+  const toggleRecording = () => {
+    if (isAiThinking) return;
+
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  };
+
+  const clearConversation = async () => {
+    try {
+      if (isRecording) {
+        await audioRecorder.stop();
+      }
+    } catch (error) {
+      console.error(error);
+    }
+
+    setIsAiThinking(false);
+    setMessages(createInitialMessages());
+    setInputText('');
+
+    setTimeout(() => {
+      scrollToBottom(false);
+    }, 80);
+  };
+
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+
+    const paddingToBottom = 80;
+    const isNearBottom =
+      layoutMeasurement.height + contentOffset.y >=
+      contentSize.height - paddingToBottom;
+
+    setIsAtBottom(isNearBottom);
+
+    if (isNearBottom) {
+      setShowScrollButton(false);
+    }
+  };
+
+  const formatTime = (timestamp: number) => {
+    const date = new Date(timestamp);
+
+    return date.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  if (!isModelReady) {
+    return (
+      <ModelCheckScreen
+        onReady={() => {
+          setIsModelReady(true);
+        }}
+      />
+    );
+  }
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.select({
+        ios: 'padding',
+        android: undefined,
+      })}
+    >
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.title}>Biilang</Text>
+          <Text style={styles.subtitle}>
+            {isAiThinking
+              ? 'AI is thinking...'
+              : isRecording
+                ? 'Recording...'
+                : 'AI Speaking English'}
+          </Text>
+        </View>
+
+        <Pressable style={styles.clearButton} onPress={clearConversation}>
+          <Text style={styles.clearButtonText}>Clear</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.chatWrapper}>
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.chatBox}
+          contentContainerStyle={styles.chatContent}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          onContentSizeChange={() => {
+            if (isAtBottom) {
+              scrollToBottom(false);
+            } else {
+              setShowScrollButton(true);
+            }
+          }}
+          keyboardShouldPersistTaps="handled"
+        >
+          {messages.map(message => {
+            const isUser = message.role === 'user';
+            const isSystem = message.type === 'system';
+
+            return (
+              <View
+                key={message.id}
+                style={[
+                  styles.messageRow,
+                  isUser ? styles.userMessageRow : styles.aiMessageRow,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.messageBubble,
+                    isUser ? styles.userBubble : styles.aiBubble,
+                    isSystem && styles.systemBubble,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.messageText,
+                      isUser ? styles.userMessageText : styles.aiMessageText,
+                      isSystem && styles.systemMessageText,
+                    ]}
+                  >
+                    {message.text}
+                  </Text>
+
+                  <View style={styles.messageFooter}>
+                    {message.type === 'voice' && (
+                      <Text
+                        style={[
+                          styles.messageMeta,
+                          isUser && styles.userMessageMeta,
+                        ]}
+                      >
+                        Voice
+                      </Text>
+                    )}
+
+                    <Text
+                      style={[
+                        styles.messageMeta,
+                        isUser && styles.userMessageMeta,
+                      ]}
+                    >
+                      {formatTime(message.createdAt)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            );
+          })}
+        </ScrollView>
+
+        {showScrollButton && (
+          <Pressable
+            style={styles.scrollButton}
+            onPress={() => scrollToBottom(true)}
+          >
+            <Text style={styles.scrollButtonText}>↓ New message</Text>
+          </Pressable>
+        )}
+      </View>
+
+      <View style={styles.inputPanel}>
+        <Pressable
+          style={[
+            styles.microButton,
+            isRecording && styles.microButtonRecording,
+            isAiThinking && styles.disabledButton,
+          ]}
+          onPress={toggleRecording}
+          disabled={isAiThinking}
+        >
+          <Text style={styles.microButtonText}>
+            {isRecording ? '■' : '🎙'}
+          </Text>
+        </Pressable>
+
+        <TextInput
+          value={inputText}
+          onChangeText={setInputText}
+          placeholder={
+            isAiThinking
+              ? 'Please wait for AI reply...'
+              : isRecording
+                ? 'Recording...'
+                : 'Type your message...'
+          }
+          placeholderTextColor="#9ca3af"
+          style={styles.input}
+          multiline
+          maxLength={500}
+          editable={!isAiThinking && !isRecording}
+          returnKeyType="send"
+          onSubmitEditing={sendTextMessage}
+        />
+
+        <Pressable
+          style={[
+            styles.sendButton,
+            (!inputText.trim() || isAiThinking || isRecording) &&
+              styles.sendButtonDisabled,
+          ]}
+          onPress={sendTextMessage}
+          disabled={!inputText.trim() || isAiThinking || isRecording}
+        >
+          <Text style={styles.sendButtonText}>Send</Text>
+        </Pressable>
+      </View>
+
+      {isRecording && (
+        <View style={styles.recordingBar}>
+          <Text style={styles.recordingText}>
+            Recording... tap the red button to stop.
+          </Text>
+        </View>
+      )}
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+    backgroundColor: '#f7f7f7',
+  },
+  header: {
+    paddingTop: 54,
+    paddingHorizontal: 18,
+    paddingBottom: 14,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#111827',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  clearButton: {
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 999,
+  },
+  clearButtonText: {
+    color: '#374151',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  chatWrapper: {
+    flex: 1,
+    position: 'relative',
+  },
+  chatBox: {
+    flex: 1,
+  },
+  chatContent: {
+    padding: 16,
+    paddingBottom: 24,
+  },
+  messageRow: {
+    width: '100%',
+    marginBottom: 12,
+  },
+  aiMessageRow: {
+    alignItems: 'flex-start',
+  },
+  userMessageRow: {
+    alignItems: 'flex-end',
+  },
+  messageBubble: {
+    maxWidth: '84%',
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  aiBubble: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 6,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  userBubble: {
+    backgroundColor: '#111827',
+    borderTopRightRadius: 6,
+  },
+  systemBubble: {
+    backgroundColor: '#f9fafb',
+  },
+  messageText: {
+    fontSize: 16,
+    lineHeight: 23,
+  },
+  aiMessageText: {
+    color: '#111827',
+  },
+  userMessageText: {
+    color: '#ffffff',
+  },
+  systemMessageText: {
+    color: '#6b7280',
+    fontStyle: 'italic',
+  },
+  messageFooter: {
+    marginTop: 7,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
     gap: 8,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  messageMeta: {
+    fontSize: 11,
+    color: '#9ca3af',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
+  userMessageMeta: {
+    color: '#d1d5db',
+  },
+  scrollButton: {
     position: 'absolute',
+    bottom: 14,
+    alignSelf: 'center',
+    backgroundColor: '#111827',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+  },
+  scrollButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  inputPanel: {
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 12,
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  microButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 999,
+    backgroundColor: '#e5e7eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  microButtonRecording: {
+    backgroundColor: '#dc2626',
+  },
+  microButtonText: {
+    color: '#111827',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  input: {
+    flex: 1,
+    maxHeight: 120,
+    minHeight: 46,
+    borderRadius: 18,
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: '#111827',
+    fontSize: 16,
+  },
+  sendButton: {
+    minWidth: 64,
+    height: 46,
+    borderRadius: 999,
+    backgroundColor: '#2563eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#bfdbfe',
+  },
+  sendButtonText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
+  recordingBar: {
+    backgroundColor: '#fee2e2',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#fecaca',
+  },
+  recordingText: {
+    textAlign: 'center',
+    color: '#991b1b',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
