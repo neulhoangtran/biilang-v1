@@ -1,7 +1,7 @@
 # app-vikof
 
 # normal deploy
-cd /var/www/html/vikof; git pull origin master; docker compose up -d --build --no-deps strapi
+cd /var/www/billang; git pull origin master; docker compose up -d --build --no-deps strapi
 docker logs -f strapi
 
 #deploy app with all clean
