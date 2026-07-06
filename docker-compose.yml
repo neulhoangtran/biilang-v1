@@ -16,7 +16,7 @@ services:
       ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET}
       APP_KEYS: ${APP_KEYS}
       NODE_ENV: production
-      PUBLIC_URL: https://api.vikof.kr
+      PUBLIC_URL: https://api.billang.site
     volumes:
       - ./backend/public/uploads:/opt/app/public/uploads
       - ./backend/logs:/opt/app/logs
