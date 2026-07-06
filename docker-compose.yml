@@ -1,0 +1,83 @@
+services:
+  strapi:
+    container_name: strapi
+    build: ./backend/.
+    image: strapi:latest
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      DATABASE_CLIENT: ${DATABASE_CLIENT}
+      DATABASE_HOST: strapiDB
+      DATABASE_PORT: ${DATABASE_PORT}
+      DATABASE_NAME: ${DATABASE_NAME}
+      DATABASE_USERNAME: ${DATABASE_USERNAME}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET}
+      APP_KEYS: ${APP_KEYS}
+      NODE_ENV: production
+      PUBLIC_URL: https://api.vikof.kr
+    volumes:
+      - ./backend/public/uploads:/opt/app/public/uploads
+      - ./backend/logs:/opt/app/logs
+    expose:
+      - "1337"
+    networks:
+      - strapi
+    depends_on:
+      - strapiDB
+
+  caddy:
+    container_name: caddy
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - strapi
+    depends_on:
+      - strapi
+
+  strapiDB:
+    container_name: strapiDB
+    platform: linux/amd64
+    image: postgres:12.0-alpine
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${DATABASE_USERNAME}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_DB: ${DATABASE_NAME}
+    volumes:
+      - strapi-data:/var/lib/postgresql/data/
+    ports:
+      - "5432:5432"
+    networks:
+      - strapi
+  # pgadmin:
+  #   container_name: pgadmin
+  #   image: dpage/pgadmin4
+  #   restart: unless-stopped
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: admin@example.com
+  #     PGADMIN_DEFAULT_PASSWORD: admin123
+  #   ports:
+  #     - "8088:80"
+  #   networks:
+  #     - strapi
+  #   depends_on:
+  #     - strapiDB
+
+volumes:
+  strapi-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  strapi:
+    driver: bridge

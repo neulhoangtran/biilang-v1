@@ -1,0 +1,19 @@
+{
+  "collectionName": "components_cms_block_single_images",
+  "info": {
+    "displayName": "SingleImage",
+    "icon": "book"
+  },
+  "options": {},
+  "attributes": {
+    "Image": {
+      "type": "media",
+      "multiple": false,
+      "required": true,
+      "allowedTypes": [
+        "images"
+      ]
+    }
+  },
+  "config": {}
+}

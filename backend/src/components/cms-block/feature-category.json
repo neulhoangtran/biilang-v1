@@ -1,0 +1,21 @@
+{
+  "collectionName": "components_cms_block_feature_category",
+  "info": {
+    "displayName": "FeatureCategory",
+    "icon": "apps"
+  },
+  "options": {},
+  "attributes": {
+    "Category": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::category.category"
+    },
+    "Products": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::product.product"
+    }
+  },
+  "config": {}
+}

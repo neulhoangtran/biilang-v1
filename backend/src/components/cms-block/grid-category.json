@@ -1,0 +1,16 @@
+{
+  "collectionName": "components_cms_block_grid_categories",
+  "info": {
+    "displayName": "GridCategory",
+    "icon": "apps"
+  },
+  "options": {},
+  "attributes": {
+    "Categories": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::category.category"
+    }
+  },
+  "config": {}
+}

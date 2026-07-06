@@ -1,0 +1,19 @@
+{
+  "collectionName": "components_cms_block_banner_sliders",
+  "info": {
+    "displayName": "BannerSlider",
+    "icon": "book"
+  },
+  "options": {},
+  "attributes": {
+    "SliderImage": {
+      "type": "media",
+      "multiple": true,
+      "required": true,
+      "allowedTypes": [
+        "images"
+      ]
+    }
+  },
+  "config": {}
+}

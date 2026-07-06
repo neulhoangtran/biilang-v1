@@ -1,0 +1,21 @@
+{
+  "kind": "singleType",
+  "collectionName": "configurations",
+  "info": {
+    "singularName": "configuration",
+    "pluralName": "configurations",
+    "displayName": "Configuration"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "RegisterMessage": {
+      "type": "text"
+    },
+    "ReRegisterMessage": {
+      "type": "text"
+    }
+  }
+}

@@ -1,50 +1,52 @@
-# Welcome to your Expo app 👋
+# app-vikof
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+# normal deploy
+cd /var/www/html/vikof; git pull origin master; docker compose up -d --build --no-deps strapi
+docker logs -f strapi
 
-## Get started
+#deploy app with all clean
+cd /var/www/html/vikof
+docker compose build --no-cache strapi
+docker compose up -d --no-deps strapi
 
-1. Install dependencies
+# database 
+docker exec -it strapiDB bash
 
-   ```bash
-   npm install
-   ```
+sh restore.sh
+docker exec -it strapiDB sh
+pg_restore --clean --if-exists -U app -d strapi /tmp/restore.sql
 
-2. Start the app
 
-   ```bash
-   npx expo start
-   ```
 
-In the output, you'll find options to open the app in a
+# Các step deploy app 
+npm install -g eas-cli
+eas login
+eas build:configure
+eas build --platform ios --profile production
+# build lại
+sửa "buildNumber": "4", trong app.json
+eas build --platform ios --profile production
+eas submit --platform ios --profile production --latest
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+# tạo .env
+eas env:create --environment production --name EXPO_PUBLIC_API_BASE_URL --value http://45.251.114.21:1337
+eas env:create --environment production --name EXPO_PUBLIC_API_TOKEN --value xxx
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+# chỉ update 
+eas update --environment production --branch production --message "Update app" 
 
-## Get a fresh project
 
-When you're ready, run:
 
-```bash
-npm run reset-project
-```
+git add . ; git commit -m "update"; git push origin master
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+docker exec -it strapi sh -c "tail -n 200 /opt/app/logs/cron/sms-cron/sms-cron-$(date +%F).log"
 
-## Learn more
+mkdir -p ./backend/logs/cron
+mkdir -p ./backend/logs/system
 
-To learn more about developing your project with Expo, look at the following resources:
+chmod -R 777 ./backend/logs
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+npx expo login
 
-## Join the community
 
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+rm -rf .cache build dist node_modules/.cache node_modules package-lock.json yarn.lock pnpm-lock.yaml
