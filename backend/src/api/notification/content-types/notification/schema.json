@@ -1,0 +1,249 @@
+{
+  "kind": "collectionType",
+  "collectionName": "notifications",
+  "info": {
+    "singularName": "notification",
+    "pluralName": "notifications",
+    "displayName": "Notification"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "isActive": {
+      "type": "boolean",
+      "required": true,
+      "default": true
+    },
+    "Title": {
+      "type": "string",
+      "required": true
+    },
+    "Description": {
+      "type": "customField",
+      "customField": "plugin::ckeditor5.CKEditor",
+      "options": {
+        "preset": "defaultHtml"
+      },
+      "required": true
+    },
+    "ShortDescription": {
+      "type": "customField",
+      "customField": "plugin::ckeditor5.CKEditor",
+      "options": {
+        "preset": "defaultHtml"
+      },
+      "required": true
+    },
+    "ActiveDate": {
+      "type": "datetime",
+      "required": true
+    },
+    "SendTo": {
+      "type": "enumeration",
+      "required": true,
+      "default": "Branch",
+      "enum": [
+        "All",
+        "User",
+        "Branch"
+      ]
+    },
+    "Users": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "plugin::users-permissions.user",
+      "conditions": {
+        "visible": {
+          "==": [
+            {
+              "var": "SendTo"
+            },
+            "User"
+          ]
+        }
+      },
+      "mappedBy": "Notifications"
+    },
+    "Branch": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::branch.branch",
+      "conditions": {
+        "visible": {
+          "==": [
+            {
+              "var": "SendTo"
+            },
+            "Branch"
+          ]
+        }
+      },
+      "mappedBy": "Notification"
+    },
+    "Schedule": {
+      "type": "enumeration",
+      "required": true,
+      "default": "Immediately",
+      "enum": [
+        "Immediately",
+        "Hourly",
+        "Daily",
+        "Weekly",
+        "Monthly",
+        "Manually"
+      ]
+    },
+    "SelectTime": {
+      "type": "time",
+      "conditions": {
+        "visible": {
+          "in": [
+            {
+              "var": "Schedule"
+            },
+            [
+              "Daily",
+              "Weekly",
+              "Monthly"
+            ]
+          ]
+        }
+      }
+    },
+    "SelectWeekDay": {
+      "type": "enumeration",
+      "conditions": {
+        "visible": {
+          "==": [
+            {
+              "var": "Schedule"
+            },
+            "Weekly"
+          ]
+        }
+      },
+      "enum": [
+        "MON",
+        "TUE",
+        "WED",
+        "THU",
+        "FRI",
+        "SAT",
+        "SUN"
+      ]
+    },
+    "SelectMonthDay": {
+      "type": "integer",
+      "conditions": {
+        "visible": {
+          "==": [
+            {
+              "var": "Schedule"
+            },
+            "Monthly"
+          ]
+        }
+      },
+      "min": 1,
+      "max": 31
+    },
+    "ManualDateTime1": {
+      "type": "datetime",
+      "conditions": {
+        "visible": {
+          "==": [
+            {
+              "var": "Schedule"
+            },
+            "Manually"
+          ]
+        }
+      }
+    },
+    "ManualDateTime2": {
+      "type": "datetime",
+      "conditions": {
+        "visible": {
+          "==": [
+            {
+              "var": "Schedule"
+            },
+            "Manually"
+          ]
+        }
+      }
+    },
+    "ManualDateTime3": {
+      "type": "datetime",
+      "conditions": {
+        "visible": {
+          "==": [
+            {
+              "var": "Schedule"
+            },
+            "Manually"
+          ]
+        }
+      }
+    },
+    "ManualDateTime4": {
+      "type": "datetime",
+      "conditions": {
+        "visible": {
+          "==": [
+            {
+              "var": "Schedule"
+            },
+            "Manually"
+          ]
+        }
+      }
+    },
+    "ManualDateTime5": {
+      "type": "datetime",
+      "conditions": {
+        "visible": {
+          "==": [
+            {
+              "var": "Schedule"
+            },
+            "Manually"
+          ]
+        }
+      }
+    },
+    "SendStatus": {
+      "type": "enumeration",
+      "required": true,
+      "default": "waiting",
+      "enum": [
+        "waiting",
+        "hold",
+        "processing",
+        "done",
+        "error"
+      ]
+    },
+    "LastRunAt": {
+      "type": "datetime"
+    },
+    "NextRunAt": {
+      "type": "datetime"
+    },
+    "ProcessingAt": {
+      "type": "datetime"
+    },
+    "RetryTime": {
+      "type": "integer",
+      "default": 0,
+      "min": 0
+    },
+    "RunCount": {
+      "type": "integer",
+      "default": 0,
+      "min": 0
+    }
+  }
+}

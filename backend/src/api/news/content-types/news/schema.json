@@ -1,0 +1,50 @@
+{
+  "kind": "collectionType",
+  "collectionName": "newss",
+  "info": {
+    "singularName": "news",
+    "pluralName": "newss",
+    "displayName": "News"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "FeatureImage": {
+      "type": "media",
+      "multiple": false,
+      "required": true,
+      "allowedTypes": [
+        "images",
+        "files"
+      ]
+    },
+    "Title": {
+      "type": "string",
+      "maxLength": 200,
+      "required": true
+    },
+    "ShortDescription": {
+      "type": "text",
+      "maxLength": 200
+    },
+    "Description": {
+      "type": "customField",
+      "customField": "plugin::ckeditor5.CKEditor",
+      "options": {
+        "preset": "defaultHtml"
+      }
+    },
+    "IsNotification": {
+      "type": "boolean",
+      "required": false,
+      "default": true
+    },
+    "View": {
+      "type": "biginteger",
+      "default": "1",
+      "min": "1"
+    }
+  }
+}

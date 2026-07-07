@@ -1,0 +1,81 @@
+{
+  "kind": "collectionType",
+  "collectionName": "vouchers",
+  "info": {
+    "singularName": "voucher",
+    "pluralName": "vouchers",
+    "displayName": "Voucher"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "Name": {
+      "type": "string",
+      "required": true
+    },
+    "IsActive": {
+      "type": "boolean",
+      "required": true,
+      "default": true
+    },
+    "Description": {
+      "type": "text"
+    },
+    "VoucherCode": {
+      "type": "string"
+    },
+    "ApplyFor": {
+      "type": "enumeration",
+      "required": true,
+      "enum": [
+        "All",
+        "User",
+        "Branch"
+      ]
+    },
+    "User": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "plugin::users-permissions.user",
+      "conditions": {
+        "visible": {
+          "==": [
+            {
+              "var": "ApplyFor"
+            },
+            "User"
+          ]
+        }
+      },
+      "inversedBy": "Voucher"
+    },
+    "Branch": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::branch.branch",
+      "conditions": {
+        "visible": {
+          "==": [
+            {
+              "var": "ApplyFor"
+            },
+            "Branch"
+          ]
+        }
+      },
+      "inversedBy": "Voucher"
+    },
+    "ExpiryDate": {
+      "type": "datetime",
+      "required": true
+    },
+    "voucher_histories": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::voucher-history.voucher-history",
+      "mappedBy": "Voucher"
+    }
+  }
+}

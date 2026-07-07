@@ -29,6 +29,9 @@ const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Plugin =>
       sessions: {
         httpOnly: true,
       },
+      register: {
+        allowedFields: ['PhoneNumber', 'DateOfBirth', 'Sex'],
+      },
     },
   },
   upload: {
