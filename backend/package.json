@@ -1,5 +1,5 @@
 {
-  "name": "vikof",
+  "name": "backend",
   "version": "0.1.0",
   "private": true,
   "description": "A Strapi application",
@@ -15,12 +15,9 @@
     "upgrade:dry": "npx @strapi/upgrade latest --dry"
   },
   "dependencies": {
-    "@_sh/strapi-plugin-ckeditor": "^7.1.1",
-    "@strapi/plugin-cloud": "5.48.0",
-    "@strapi/plugin-documentation": "^5.44.0",
-    "@strapi/plugin-users-permissions": "5.48.0",
-    "@strapi/strapi": "5.48.0",
-    "aligoapi": "^1.1.3",
+    "@strapi/plugin-cloud": "5.50.0",
+    "@strapi/plugin-users-permissions": "5.50.0",
+    "@strapi/strapi": "5.50.0",
     "pg": "8.20.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
@@ -34,11 +31,11 @@
     "typescript": "^5"
   },
   "engines": {
-    "node": ">=20.0.0 <=24.x.x",
+    "node": ">=20.0.0 <=26.x.x",
     "npm": ">=6.0.0"
   },
   "strapi": {
-    "uuid": "cab6f5b3-c588-40a2-99eb-c1a6313d6985",
-    "installId": "88755ffea490e17b842d9ed4650ec948995cce98aa21bda19aeed083004ca390"
+    "uuid": "47e9738f-edf8-4b97-9a25-56d36ca1b728",
+    "installId": "c2283bd0fcb3c7f4f80b615e332a6685a2dd5c7eb401840701179695d74cbd94"
   }
 }
