@@ -71,7 +71,7 @@ export default {
       }
 
       const result = await strapi
-        .service('api::vikof.vikof')
+        .service('api::general-api.vikof')
         .getAdminCustomers({
           authUserId,
           requestId: ctx.state?.requestId,

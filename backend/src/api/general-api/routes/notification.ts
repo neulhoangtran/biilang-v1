@@ -2,19 +2,19 @@ export default {
   routes: [
     {
       method: 'POST',
-      path: '/vikof/device-token',
+      path: '/app/device-token',
       handler: 'notification.saveDeviceToken',
       config: {},
     },
     {
       method: 'GET',
-      path: '/vikof/notifications',
+      path: '/app/notifications',
       handler: 'notification.list',
       config: {},
     },
     {
       method: 'GET',
-      path: '/vikof/notifications/:documentId',
+      path: '/app/notifications/:documentId',
       handler: 'notification.detail',
       config: {},
     },
