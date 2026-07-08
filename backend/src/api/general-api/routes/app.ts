@@ -10,7 +10,7 @@ export default {
       method: 'POST',
       path: '/app/admin/customers/use-voucher',
       handler:
-        'api::app.app.useCustomerVoucher',
+        'app.useCustomerVoucher',
     },
     {
       method: 'GET',

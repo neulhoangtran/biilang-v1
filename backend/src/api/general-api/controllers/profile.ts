@@ -75,7 +75,7 @@ export default {
       }
 
       const result = await strapi
-        .service('api::vikof.profile')
+        .service('api::general-api.profile')
         .getProfile({
           authUserId,
           requestId: ctx.state?.requestId,
@@ -108,7 +108,7 @@ export default {
       const { branchId, branchDocumentId } = ctx.request.body ?? {};
 
       const result = await strapi
-        .service('api::vikof.profile')
+        .service('api::general-api.profile')
         .selectBranch({
           authUserId,
           requestId: ctx.state?.requestId,
@@ -150,7 +150,7 @@ export default {
       } = ctx.request.body ?? {};
 
       const result = await strapi
-        .service('api::vikof.profile')
+        .service('api::general-api.profile')
         .updateProfile({
           authUserId,
           requestId: ctx.state?.requestId,
@@ -187,7 +187,7 @@ export default {
       }
 
       const result = await strapi
-        .service('api::vikof.profile')
+        .service('api::general-api.profile')
         .uploadAvatar({
           authUserId,
           requestId: ctx.state?.requestId,
@@ -221,7 +221,7 @@ export default {
       const { currentPassword, newPassword } = ctx.request.body ?? {};
 
       const result = await strapi
-        .service('api::vikof.profile')
+        .service('api::general-api.profile')
         .changePassword({
           authUserId,
           requestId: ctx.state?.requestId,

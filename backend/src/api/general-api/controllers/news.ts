@@ -6,7 +6,7 @@ export default {
 
     try {
       const data = await strapi
-        .service('api::vikof.news')
+        .service('api::general-api.news')
         .increaseView(documentId);
 
       ctx.body = {

@@ -59,7 +59,7 @@ export default {
       }
 
       const result = await strapi
-        .service('api::vikof.notification')
+        .service('api::general-api.notification')
         .saveDeviceToken({
           userId: user.id,
           token: cleanToken,
@@ -109,7 +109,7 @@ export default {
       }
 
       const data = await strapi
-        .service('api::vikof.notification')
+        .service('api::general-api.notification')
         .listForUser({
           userId: user.id,
           page: ctx.query?.page,
@@ -152,7 +152,7 @@ export default {
       ).trim();
 
       const data = await strapi
-        .service('api::vikof.notification')
+        .service('api::general-api.notification')
         .detailForUser({
           userId: user.id,
           documentId,

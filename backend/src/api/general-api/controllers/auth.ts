@@ -44,10 +44,10 @@ function sendErrorResponse(ctx: any, error: any, fallback: string) {
 }
 
 export default {
-  async register(ctx) {
+  async register(ctx: any) {
     try {
       const result = await strapi
-        .service('api::vikof.auth')
+        .service('api::general-api.auth')
         .register(ctx.request.body ?? {});
 
       return ctx.send(result);
@@ -62,10 +62,10 @@ export default {
     }
   },
 
-  async login(ctx) {
+  async login(ctx: any) {
     try {
       const result = await strapi
-        .service('api::vikof.auth')
+        .service('api::general-api.auth')
         .login(ctx.request.body ?? {});
 
       return ctx.send(result);
@@ -80,10 +80,10 @@ export default {
     }
   },
 
-  async sendLoginOtp(ctx) {
+  async sendLoginOtp(ctx: any) {
     try {
       const result = await strapi
-        .service('api::vikof.auth')
+        .service('api::general-api.auth')
         .sendLoginOtp(ctx.request.body ?? {});
 
       return ctx.send(result);
@@ -98,10 +98,10 @@ export default {
     }
   },
 
-  async verifyLoginOtp(ctx) {
+  async verifyLoginOtp(ctx: any) {
     try {
       const result = await strapi
-        .service('api::vikof.auth')
+        .service('api::general-api.auth')
         .verifyLoginOtp(ctx.request.body ?? {});
 
       return ctx.send(result);
@@ -116,10 +116,10 @@ export default {
     }
   },
 
-  async verifyPhone(ctx) {
+  async verifyPhone(ctx: any) {
     try {
       const result = await strapi
-        .service('api::vikof.auth')
+        .service('api::general-api.auth')
         .verifyPhone(ctx.request.body ?? {});
 
       return ctx.send(result);
@@ -134,10 +134,10 @@ export default {
     }
   },
 
-  async resendPhoneVerifyOtp(ctx) {
+  async resendPhoneVerifyOtp(ctx: any) {
     try {
       const result = await strapi
-        .service('api::vikof.auth')
+        .service('api::general-api.auth')
         .resendPhoneVerifyOtp(ctx.request.body ?? {});
 
       return ctx.send(result);
@@ -152,10 +152,10 @@ export default {
     }
   },
 
-  async sendForgotPasswordOtp(ctx) {
+  async sendForgotPasswordOtp(ctx: any) {
     try {
       const result = await strapi
-        .service('api::vikof.auth')
+        .service('api::general-api.auth')
         .sendForgotPasswordOtp(ctx.request.body ?? {});
 
       return ctx.send(result);
@@ -174,10 +174,10 @@ export default {
     }
   },
 
-  async resetPasswordWithOtp(ctx) {
+  async resetPasswordWithOtp(ctx: any) {
     try {
       const result = await strapi
-        .service('api::vikof.auth')
+        .service('api::general-api.auth')
         .resetPasswordWithOtp(ctx.request.body ?? {});
 
       return ctx.send(result);
@@ -191,7 +191,8 @@ export default {
       return sendErrorResponse(ctx, error, 'Không thể đặt lại mật khẩu.');
     }
   },
-  async requestDeleteAccount(ctx) {
+
+  async requestDeleteAccount(ctx: any) {
     try {
       const user = ctx.state?.user;
 
@@ -200,7 +201,7 @@ export default {
       }
 
       const result = await strapi
-        .service('api::vikof.auth')
+        .service('api::general-api.auth')
         .requestDeleteAccount({
           userId: user.id,
         });
@@ -221,7 +222,7 @@ export default {
     }
   },
 
-  async cancelDeleteAccount(ctx) {
+  async cancelDeleteAccount(ctx: any) {
     try {
       const user = ctx.state?.user;
 
@@ -230,7 +231,7 @@ export default {
       }
 
       const result = await strapi
-        .service('api::vikof.auth')
+        .service('api::general-api.auth')
         .cancelDeleteAccount({
           userId: user.id,
         });

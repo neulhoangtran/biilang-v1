@@ -1,4 +1,4 @@
-import sendAligoSms from './aligo-sms';
+// import sendAligoSms from './aligo-sms';
 import {
   systemError,
   systemInfo,
@@ -12,6 +12,14 @@ const DELETE_ACCOUNT_DELAY_HOURS = 24;
 
 const SMS_SUPPORT_ERROR =
   'Đã xảy ra lỗi, vui lòng liên hệ admin để được hỗ trợ.';
+
+const EMAIL_SUPPORT_ERROR =
+  'Đã xảy ra lỗi, vui lòng liên hệ admin để được hỗ trợ.';
+
+const DEFAULT_EMAIL_FROM =
+  process.env.SMTP_DEFAULT_FROM ||
+  process.env.EMAIL_DEFAULT_FROM ||
+  'no-reply@billang.site';
 
 const FIRST_REGISTER_VOUCHER_MONTHS = 1;
 
@@ -85,19 +93,22 @@ const normalizeEmail = (value: unknown) => {
 
 const normalizeDateOfBirth = (value: unknown) => {
   const raw = String(value || '').trim();
+
   const match = raw.match(
     /^(\d{4})-(\d{2})-(\d{2})$/
   );
 
   if (!match) {
-    badRequest(
-      'Ngày sinh không hợp lệ. Vui lòng nhập theo định dạng YYYY-MM-DD.'
+    throw new AuthServiceError(
+      'Ngày sinh không hợp lệ. Vui lòng nhập theo định dạng YYYY-MM-DD.',
+      400
     );
   }
 
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
+
   const date = new Date(
     Date.UTC(year, month - 1, day)
   );
@@ -107,7 +118,7 @@ const normalizeDateOfBirth = (value: unknown) => {
     date.getUTCMonth() !== month - 1 ||
     date.getUTCDate() !== day
   ) {
-    badRequest('Ngày sinh không hợp lệ.');
+    throw new AuthServiceError('Ngày sinh không hợp lệ.', 400);
   }
 
   const now = new Date();
@@ -118,8 +129,9 @@ const normalizeDateOfBirth = (value: unknown) => {
   );
 
   if (date.getTime() > todayUtc) {
-    badRequest(
-      'Ngày sinh không được lớn hơn ngày hiện tại.'
+    throw new AuthServiceError(
+      'Ngày sinh không được lớn hơn ngày hiện tại.',
+      400
     );
   }
 
@@ -144,6 +156,10 @@ const getUserPhone = (user: any) => {
       user?.username ||
       ''
   );
+};
+
+const getUserEmail = (user: any) => {
+  return normalizeEmail(user?.email || user?.Email || '');
 };
 
 const buildUserCustomName = ({
@@ -370,7 +386,7 @@ const expireOldOtps = async (
   purpose: OtpPurpose
 ) => {
   const oldOtps = await strapi.entityService.findMany(
-    'api::vikof.user-otp' as any,
+    'api::general-api.user-otp' as any,
     {
       filters: {
         user: {
@@ -390,7 +406,7 @@ const expireOldOtps = async (
 
   await Promise.all(
     oldOtps.map((item: any) =>
-      strapi.entityService.update('api::vikof.user-otp' as any, item.id, {
+      strapi.entityService.update('api::general-api.user-otp' as any, item.id, {
         data: {
           used: true,
           expiresAt: new Date().toISOString(),
@@ -400,21 +416,129 @@ const expireOldOtps = async (
   );
 };
 
+function getOtpEmailSubject(purpose: OtpPurpose) {
+  if (purpose === 'login') {
+    return '[Billang] Mã OTP đăng nhập';
+  }
+
+  if (purpose === 'reset_password') {
+    return '[Billang] Mã OTP đặt lại mật khẩu';
+  }
+
+  return '[Billang] Mã OTP xác thực tài khoản';
+}
+
+function getOtpEmailTitle(purpose: OtpPurpose) {
+  if (purpose === 'login') {
+    return 'Mã OTP đăng nhập';
+  }
+
+  if (purpose === 'reset_password') {
+    return 'Mã OTP đặt lại mật khẩu';
+  }
+
+  return 'Mã OTP xác thực tài khoản';
+}
+
+function getOtpEmailTemplate({
+  otpCode,
+  purpose,
+}: {
+  otpCode: string;
+  purpose: OtpPurpose;
+}) {
+  const subject = getOtpEmailSubject(purpose);
+  const title = getOtpEmailTitle(purpose);
+
+  const text = `${title}: ${otpCode}. Mã này có hiệu lực trong ${OTP_EXPIRE_MINUTES} phút.`;
+
+  const html = `
+    <div style="margin:0;padding:0;background:#f5f7fb;font-family:Arial,Helvetica,sans-serif;color:#222;">
+      <div style="max-width:560px;margin:0 auto;padding:32px 16px;">
+        <div style="background:#ffffff;border-radius:14px;padding:28px;border:1px solid #e5e7eb;">
+          <h2 style="margin:0 0 16px;font-size:22px;color:#111827;">
+            ${title}
+          </h2>
+
+          <p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#374151;">
+            Xin chào,
+          </p>
+
+          <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#374151;">
+            Bạn đang thực hiện yêu cầu xác thực trên hệ thống Billang.
+            Vui lòng sử dụng mã OTP bên dưới:
+          </p>
+
+          <div style="margin:24px 0;padding:18px;background:#f3f4f6;border-radius:12px;text-align:center;">
+            <div style="font-size:34px;font-weight:700;letter-spacing:8px;color:#111827;">
+              ${otpCode}
+            </div>
+          </div>
+
+          <p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#374151;">
+            Mã OTP này có hiệu lực trong
+            <strong>${OTP_EXPIRE_MINUTES} phút</strong>.
+          </p>
+
+          <p style="margin:0;font-size:14px;line-height:1.6;color:#6b7280;">
+            Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email.
+          </p>
+        </div>
+
+        <p style="margin:18px 0 0;text-align:center;font-size:12px;color:#9ca3af;">
+          © Billang
+        </p>
+      </div>
+    </div>
+  `;
+
+  return {
+    subject,
+    text,
+    html,
+  };
+}
+
+async function sendOtpEmail({
+  to,
+  otpCode,
+  purpose,
+}: {
+  to: string;
+  otpCode: string;
+  purpose: OtpPurpose;
+}) {
+  const template = getOtpEmailTemplate({
+    otpCode,
+    purpose,
+  });
+
+  await strapi.plugin('email').service('email').send({
+    to,
+    from: DEFAULT_EMAIL_FROM,
+    subject: template.subject,
+    text: template.text,
+    html: template.html,
+  });
+}
+
 const createOtp = async ({
   userId,
   phoneNumber,
+  email,
   purpose,
   failWhenSmsError = false,
 }: {
   userId: number;
   phoneNumber: string;
+  email?: string;
   purpose: OtpPurpose;
   failWhenSmsError?: boolean;
 }) => {
   const otpCode = generateOtpCode();
   const expiresAt = addMinutes(new Date(), OTP_EXPIRE_MINUTES);
 
-  await strapi.entityService.create('api::vikof.user-otp' as any, {
+  await strapi.entityService.create('api::general-api.user-otp' as any, {
     data: {
       user: userId,
       phoneNumber,
@@ -426,41 +550,65 @@ const createOtp = async ({
     } as any,
   });
 
-  const smsMessage =
-    purpose === 'login'
-      ? `[Vikof Mobile] Login OTP: ${otpCode}. Valid ${OTP_EXPIRE_MINUTES} minutes.`
-      : purpose === 'reset_password'
-        ? `[Vikof Mobile] Password reset OTP: ${otpCode}. Valid ${OTP_EXPIRE_MINUTES} minutes.`
-        : `[Vikof Mobile] OTP: ${otpCode}. Valid ${OTP_EXPIRE_MINUTES} minutes.`;
+  const otpEmail = normalizeEmail(email || '');
+
+  if (!otpEmail) {
+    systemError({
+      scope: 'auth',
+      event: 'OTP_EMAIL_MISSING',
+      userId,
+      data: {
+        phoneNumber,
+        purpose,
+      },
+    });
+
+    throw new AuthServiceError('Không tìm thấy email để gửi OTP.', 400);
+  }
 
   let smsSent = false;
   let smsErrorMessage = '';
 
   try {
-    await sendAligoSms({
-      receiver: phoneNumber,
-      message: smsMessage,
+    await sendOtpEmail({
+      to: otpEmail,
+      otpCode,
+      purpose,
     });
 
     smsSent = true;
-  } catch (error: any) {
-    smsSent = false;
-    smsErrorMessage = error?.message || 'SMS send failed';
 
-    systemError({
+    systemInfo({
       scope: 'auth',
-      event: 'OTP_SMS_SEND_FAILED',
+      event: 'OTP_EMAIL_SENT',
       userId,
       data: {
         phoneNumber,
+        email: otpEmail,
+        purpose,
+        expiresAt: expiresAt.toISOString(),
+      },
+    });
+  } catch (error: any) {
+    smsSent = false;
+    smsErrorMessage = error?.message || 'Email send failed';
+
+    systemError({
+      scope: 'auth',
+      event: 'OTP_EMAIL_SEND_FAILED',
+      userId,
+      data: {
+        phoneNumber,
+        email: otpEmail,
         purpose,
         errorName: error?.name,
         errorMessage: smsErrorMessage,
+        errorStack: error?.stack,
       },
     });
 
     if (failWhenSmsError) {
-      throw new AuthServiceError(SMS_SUPPORT_ERROR, 400);
+      throw new AuthServiceError(EMAIL_SUPPORT_ERROR, 400);
     }
   }
 
@@ -470,6 +618,22 @@ const createOtp = async ({
     smsSent,
     smsErrorMessage,
   };
+
+  /**
+   * Old Aligo SMS logic - disabled.
+   *
+   * const smsMessage =
+   *   purpose === 'login'
+   *     ? `[Vikof Mobile] Login OTP: ${otpCode}. Valid ${OTP_EXPIRE_MINUTES} minutes.`
+   *     : purpose === 'reset_password'
+   *       ? `[Vikof Mobile] Password reset OTP: ${otpCode}. Valid ${OTP_EXPIRE_MINUTES} minutes.`
+   *       : `[Vikof Mobile] OTP: ${otpCode}. Valid ${OTP_EXPIRE_MINUTES} minutes.`;
+   *
+   * await sendAligoSms({
+   *   receiver: phoneNumber,
+   *   message: smsMessage,
+   * });
+   */
 };
 
 const verifyOtpRecord = async ({
@@ -503,7 +667,7 @@ const verifyOtpRecord = async ({
   }
 
   const otps = await strapi.entityService.findMany(
-    'api::vikof.user-otp' as any,
+    'api::general-api.user-otp' as any,
     {
       filters: {
         user: {
@@ -532,7 +696,7 @@ const verifyOtpRecord = async ({
 
   if (currentAttempt >= 5) {
     await strapi.entityService.update(
-      'api::vikof.user-otp' as any,
+      'api::general-api.user-otp' as any,
       (otpRecord as any).id,
       {
         data: {
@@ -552,7 +716,7 @@ const verifyOtpRecord = async ({
     expiresAt.getTime() < new Date().getTime()
   ) {
     await strapi.entityService.update(
-      'api::vikof.user-otp' as any,
+      'api::general-api.user-otp' as any,
       (otpRecord as any).id,
       {
         data: {
@@ -566,7 +730,7 @@ const verifyOtpRecord = async ({
 
   if ((otpRecord as any).code !== cleanOtp) {
     await strapi.entityService.update(
-      'api::vikof.user-otp' as any,
+      'api::general-api.user-otp' as any,
       (otpRecord as any).id,
       {
         data: {
@@ -579,7 +743,7 @@ const verifyOtpRecord = async ({
   }
 
   await strapi.entityService.update(
-    'api::vikof.user-otp' as any,
+    'api::general-api.user-otp' as any,
     (otpRecord as any).id,
     {
       data: {
@@ -590,6 +754,44 @@ const verifyOtpRecord = async ({
 
   return otpRecord;
 };
+
+function getVoucherEmailTemplate({
+  message,
+  isFirstRegister,
+}: {
+  message: string;
+  isFirstRegister: boolean;
+}) {
+  const subject = isFirstRegister
+    ? '[Billang] Voucher đăng ký lần đầu'
+    : '[Billang] Voucher chào mừng quay lại';
+
+  const html = `
+    <div style="margin:0;padding:0;background:#f5f7fb;font-family:Arial,Helvetica,sans-serif;color:#222;">
+      <div style="max-width:560px;margin:0 auto;padding:32px 16px;">
+        <div style="background:#ffffff;border-radius:14px;padding:28px;border:1px solid #e5e7eb;">
+          <h2 style="margin:0 0 16px;font-size:22px;color:#111827;">
+            ${subject}
+          </h2>
+
+          <p style="margin:0;font-size:15px;line-height:1.7;color:#374151;">
+            ${message}
+          </p>
+        </div>
+
+        <p style="margin:18px 0 0;text-align:center;font-size:12px;color:#9ca3af;">
+          © Billang
+        </p>
+      </div>
+    </div>
+  `;
+
+  return {
+    subject,
+    text: message,
+    html,
+  };
+}
 
 const sendRegisterVoucherSmsSafely = async ({
   user,
@@ -604,40 +806,70 @@ const sendRegisterVoucherSmsSafely = async ({
   ).slice(0, 10);
   const message =
     await getRenderedConfigurationValue({
-    key: isFirstRegister
-      ? 'RegisterMessage'
-      : 'ReRegisterMessage',
-    fallback: isFirstRegister
-      ? FIRST_REGISTER_VOUCHER_SMS
-      : RETURNING_REGISTER_VOUCHER_SMS,
-    values: {
-      name: getUserDisplayName(user),
-      fullName: getUserDisplayName(user),
-      firstName: user?.FirstName || user?.firstName || '',
-      lastName: user?.LastName || user?.lastName || '',
-      phoneNumber,
-      voucherCode: '',
-      expiryDate,
-      voucherAmount: isFirstRegister
-        ? '30.000 KRW'
-        : '10.000 KRW',
-      isFirstRegister,
-      user,
-    },
+      key: isFirstRegister
+        ? 'RegisterMessage'
+        : 'ReRegisterMessage',
+      fallback: isFirstRegister
+        ? FIRST_REGISTER_VOUCHER_SMS
+        : RETURNING_REGISTER_VOUCHER_SMS,
+      values: {
+        name: getUserDisplayName(user),
+        fullName: getUserDisplayName(user),
+        firstName: user?.FirstName || user?.firstName || '',
+        lastName: user?.LastName || user?.lastName || '',
+        phoneNumber,
+        voucherCode: '',
+        expiryDate,
+        voucherAmount: isFirstRegister
+          ? '30.000 KRW'
+          : '10.000 KRW',
+        isFirstRegister,
+        user,
+      },
     });
 
-  try {
-    await sendAligoSms({
-      receiver: phoneNumber,
+  const userEmail = getUserEmail(user);
+
+  if (!userEmail) {
+    systemError({
+      scope: 'auth',
+      event: 'REGISTER_VOUCHER_EMAIL_MISSING',
+      userId: user?.id,
+      data: {
+        phoneNumber,
+        isFirstRegister,
+        customName: getUserCustomName(user),
+      },
+    });
+
+    return {
+      smsSent: false,
+      smsErrorMessage: 'Missing email',
       message,
+    };
+  }
+
+  try {
+    const template = getVoucherEmailTemplate({
+      message,
+      isFirstRegister,
+    });
+
+    await strapi.plugin('email').service('email').send({
+      to: userEmail,
+      from: DEFAULT_EMAIL_FROM,
+      subject: template.subject,
+      text: template.text,
+      html: template.html,
     });
 
     systemInfo({
       scope: 'auth',
-      event: 'REGISTER_VOUCHER_SMS_SENT',
+      event: 'REGISTER_VOUCHER_EMAIL_SENT',
       userId: user?.id,
       data: {
         phoneNumber,
+        email: userEmail,
         isFirstRegister,
         customName: getUserCustomName(user),
       },
@@ -648,13 +880,23 @@ const sendRegisterVoucherSmsSafely = async ({
       smsErrorMessage: '',
       message,
     };
+
+    /**
+     * Old Aligo SMS logic - disabled.
+     *
+     * await sendAligoSms({
+     *   receiver: phoneNumber,
+     *   message,
+     * });
+     */
   } catch (error: any) {
     systemError({
       scope: 'auth',
-      event: 'REGISTER_VOUCHER_SMS_SEND_FAILED',
+      event: 'REGISTER_VOUCHER_EMAIL_SEND_FAILED',
       userId: user?.id,
       data: {
         phoneNumber,
+        email: userEmail,
         isFirstRegister,
         customName: getUserCustomName(user),
         errorName: error?.name,
@@ -665,7 +907,7 @@ const sendRegisterVoucherSmsSafely = async ({
 
     return {
       smsSent: false,
-      smsErrorMessage: error?.message || 'Voucher SMS send failed',
+      smsErrorMessage: error?.message || 'Voucher email send failed',
       message,
     };
   }
@@ -861,6 +1103,7 @@ export default {
     const { smsSent, smsErrorMessage } = await createOtp({
       userId: Number(user.id),
       phoneNumber: cleanPhone,
+      email: cleanEmail,
       purpose: 'register',
       failWhenSmsError: false,
     });
@@ -890,8 +1133,8 @@ export default {
       smsSent,
       smsErrorMessage,
       message: smsSent
-        ? 'Đăng ký thành công. Vui lòng xác thực số điện thoại.'
-        : 'Đăng ký thành công nhưng chưa gửi được SMS. Vui lòng bấm gửi lại mã.',
+        ? 'Đăng ký thành công. Vui lòng kiểm tra email để xác thực tài khoản.'
+        : 'Đăng ký thành công nhưng chưa gửi được email OTP. Vui lòng bấm gửi lại mã.',
     });
   },
 
@@ -934,6 +1177,7 @@ export default {
       const result = await createOtp({
         userId: Number((user as any).id),
         phoneNumber: phone,
+        email: getUserEmail(user),
         purpose: 'verify_phone',
         failWhenSmsError: false,
       });
@@ -979,6 +1223,7 @@ export default {
     await createOtp({
       userId: Number((user as any).id),
       phoneNumber: cleanPhone,
+      email: getUserEmail(user),
       purpose: 'login',
       failWhenSmsError: true,
     });
@@ -987,7 +1232,7 @@ export default {
       userId: (user as any).id,
       phoneNumber: cleanPhone,
       otpExpiresIn: OTP_EXPIRE_MINUTES * 60,
-      message: 'Đã gửi mã OTP.',
+      message: 'Đã gửi mã OTP qua email.',
     };
   },
 
@@ -1121,7 +1366,7 @@ export default {
       user: updatedUser,
       jwt,
       voucherSms,
-      message: 'Xác thực số điện thoại thành công.',
+      message: 'Xác thực tài khoản thành công.',
     });
   },
 
@@ -1172,6 +1417,7 @@ export default {
     const result = await createOtp({
       userId: cleanUserId,
       phoneNumber: cleanPhone,
+      email: getUserEmail(user),
       purpose,
       failWhenSmsError: true,
     });
@@ -1180,7 +1426,7 @@ export default {
       otpExpiresIn: OTP_EXPIRE_MINUTES * 60,
       smsSent: result.smsSent,
       purpose,
-      message: 'Đã gửi lại mã OTP.',
+      message: 'Đã gửi lại mã OTP qua email.',
     };
   },
 
@@ -1216,6 +1462,7 @@ export default {
     const result = await createOtp({
       userId: Number((user as any).id),
       phoneNumber: cleanPhone,
+      email: getUserEmail(user),
       purpose: 'reset_password',
       failWhenSmsError: true,
     });
@@ -1225,7 +1472,7 @@ export default {
       phoneNumber: cleanPhone,
       otpExpiresIn: OTP_EXPIRE_MINUTES * 60,
       smsSent: result.smsSent,
-      message: 'Đã gửi mã OTP đặt lại mật khẩu.',
+      message: 'Đã gửi mã OTP đặt lại mật khẩu qua email.',
     };
   },
 

@@ -1,10 +1,10 @@
 export default {
-  async getCategoryTree(ctx) {
+  async getCategoryTree(ctx: any) {
     try {
       const debug = String(ctx.query?.debug || '') === '1';
 
       const result = await strapi
-        .service('api::vikof.category-tree')
+        .service('api::general-api.category-tree')
         .getCategoryTree();
 
       if (debug) {
@@ -15,7 +15,7 @@ export default {
           skippedCount: result.skippedItems.length,
           skippedItems: result.skippedItems,
           data: result.tree,
-          raw: result.rawItems.map(item => ({
+          raw: result.rawItems.map((item: any) => ({
             id: item.id,
             documentId: item.documentId,
             name: item.Name,
@@ -34,9 +34,7 @@ export default {
     } catch (error: any) {
       strapi.log.error('[CATEGORY_TREE_FAILED]', error);
 
-      return ctx.internalServerError(
-        'Không thể tải danh mục sản phẩm.'
-      );
+      return ctx.internalServerError('Không thể tải danh mục sản phẩm.');
     }
   },
 };

@@ -188,20 +188,15 @@ function buildCategoryTreeFromItems(items: CategoryRawItem[]) {
       return;
     }
 
-    let parentNode = byPath.get(node.parentPath);
+    let parentNode: CategoryTreeNode | undefined = byPath.get(node.parentPath);
 
-    /**
-     * Fallback nhẹ:
-     * Nếu level 3 đang nhập ParentPath là "acer"
-     * thay vì "lap-top/acer", vẫn thử tìm parent theo segment cuối.
-     */
     if (!parentNode) {
       const parentUrl = getLastPathSegment(node.parentPath);
       const candidates = byUrl.get(parentUrl) ?? [];
 
       parentNode =
         candidates.find(item => item.level === node.level - 1) ||
-        null;
+        undefined;
     }
 
     if (!parentNode) {

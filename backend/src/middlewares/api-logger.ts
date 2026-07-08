@@ -52,7 +52,7 @@ function shouldSkipLog(path: string) {
   );
 }
 
-function getSafeUser(ctx) {
+function getSafeUser(ctx: any) {
   const user = ctx.state?.user;
 
   if (!user) return null;
@@ -65,7 +65,7 @@ function getSafeUser(ctx) {
 }
 
 export default () => {
-  return async (ctx, next) => {
+  return async (ctx: any, next: any) => {
     const startedAt = Date.now();
     const requestId = ctx.state.requestId || createRequestId();
 

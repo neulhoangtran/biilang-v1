@@ -5,7 +5,7 @@ function createRequestId() {
 }
 
 export default () => {
-  return async (ctx, next) => {
+  return async (ctx: any, next: any) => {
     const requestId =
       ctx.request.headers['x-request-id'] ||
       ctx.request.headers['x-correlation-id'] ||

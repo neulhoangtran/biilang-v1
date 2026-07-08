@@ -71,7 +71,7 @@ export default {
       }
 
       const result = await strapi
-        .service('api::general-api.vikof')
+        .service('api::general-api.app')
         .getAdminCustomers({
           authUserId,
           requestId: ctx.state?.requestId,
@@ -110,7 +110,7 @@ export default {
     } = ctx.request.body || {};
 
     const result = await strapi
-      .service('api::vikof.vikof')
+      .service('api::general-api.app')
       .useAdminCustomerVoucher({
         authUserId,
         customerId,
@@ -131,7 +131,7 @@ export default {
       }
 
       const result = await strapi
-        .service('api::vikof.vikof')
+        .service('api::general-api.app')
         .getAdminMessages({
           authUserId,
           requestId: ctx.state?.requestId,
@@ -164,7 +164,7 @@ export default {
       const { title, content, schedule } = ctx.request.body ?? {};
 
       const result = await strapi
-        .service('api::vikof.vikof')
+        .service('api::general-api.app')
         .createAdminMessage({
           authUserId,
           title,
@@ -200,7 +200,7 @@ export default {
       const { title, content, schedule } = ctx.request.body ?? {};
 
       const result = await strapi
-        .service('api::vikof.vikof')
+        .service('api::general-api.app')
         .updateAdminMessage({
           authUserId,
           id: ctx.params.id,
