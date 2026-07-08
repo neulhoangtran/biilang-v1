@@ -1,676 +1,576 @@
-import ModelCheckScreen from '@/components/ModelCheckScreen';
-import { generateLocalAiReply } from '@/services/localAiService';
-import { Audio } from 'expo-av';
-import React, { useCallback, useRef, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-  Platform,
-  Pressable,
+  Image,
+  Linking,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
 
-type Message = {
-  id: string;
-  role: 'ai' | 'user';
-  text: string;
-  createdAt: number;
-  type?: 'text' | 'voice' | 'system';
-};
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
-const createInitialMessages = (): Message[] => [
-  {
-    id: 'welcome-1',
-    role: 'ai',
-    text: 'Hi! I am your English speaking partner. You can type or use the microphone to talk with me.',
-    createdAt: Date.now(),
-    type: 'text',
-  },
-];
+import HomeHeader from '@/components/HomeHeader';
+import FeatureCategorySection from '@/components/FeatureCategorySection';
+import CategoryGrid, { CategoryGridItem } from '@/components/CategoryGrid';
+import BannerSlider from '@/components/BannerSlider';
+import SingleImage from '@/components/SingleImage';
+
+import {
+  Colors,
+  Fonts,
+  FontSizes,
+  Layout,
+  Radius,
+  Spacing,
+} from '@/constants/theme';
+
+import {
+  getLandingPage,
+  HomePageBlock,
+} from '@/services/home.service';
+
+import {
+  getUserInfo,
+} from '@/services/app-storage.service';
+
+import { API_BASE_URL } from '@/services/api';
+
+const theme = Colors.light;
 
 export default function HomeScreen() {
-  const [isModelReady, setIsModelReady] = useState(false);
-  const [isSettingsMode, setIsSettingsMode] = useState(false);
+  const [blocks, setBlocks] = useState<HomePageBlock[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [homeError, setHomeError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [userInfo, setUserInfo] = useState<any>(null);
+  const [authReady, setAuthReady] = useState(false);
 
-  const [messages, setMessages] = useState<Message[]>(createInitialMessages());
-  const [inputText, setInputText] = useState('');
+  const fetchHome = async (isRefresh = false) => {
+    try {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
 
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
+      setHomeError('');
 
-  const [isAiThinking, setIsAiThinking] = useState(false);
+      const data = await getLandingPage();
 
-  const [isAtBottom, setIsAtBottom] = useState(true);
-  const [showScrollButton, setShowScrollButton] = useState(false);
+      setBlocks(data.blocks);
+    } catch (error) {
+      console.error('Fetch home failed:', error);
+      setHomeError('Không tải được dữ liệu trang chủ');
+    } finally {
+      if (isRefresh) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
+    }
+  };
 
-  const scrollViewRef = useRef<ScrollView | null>(null);
+  const loadUserFromStorage = async () => {
+    try {
+      const user = await getUserInfo();
 
-  const createMessage = (
-    role: 'ai' | 'user',
-    text: string,
-    type: 'text' | 'voice' | 'system' = 'text'
-  ): Message => {
+      /**
+       * Home là màn public.
+       * Không redirect về /welcome nếu không có user.
+       *
+       * Guest vẫn được phép xem:
+       * - Home
+       * - Banner
+       * - Category
+       * - Product section
+       * - News
+       */
+      setUserInfo(user?.id ? user : null);
+
+      return user?.id ? user : null;
+    } catch (error) {
+      console.log('[HOME_LOAD_USER_ERROR]', error);
+
+      setUserInfo(null);
+
+      return null;
+    }
+  };
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+
+    if (hour < 12) {
+      return {
+        text: 'Chào buổi sáng',
+        icon: '☀️',
+      };
+    }
+
+    if (hour < 14) {
+      return {
+        text: 'Chào buổi trưa',
+        icon: '🌤️',
+      };
+    }
+
+    if (hour < 18) {
+      return {
+        text: 'Chào buổi chiều',
+        icon: '🌇',
+      };
+    }
+
     return {
-      id: `${role}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      role,
-      text,
-      createdAt: Date.now(),
-      type,
+      text: 'Chào buổi tối',
+      icon: '🌙',
     };
   };
 
-  const scrollToBottom = useCallback((animated = true) => {
-    requestAnimationFrame(() => {
-      scrollViewRef.current?.scrollToEnd({ animated });
-      setShowScrollButton(false);
-      setIsAtBottom(true);
-    });
-  }, []);
+  const normalizePhoneNumber = (value?: string | number) => {
+    const raw = String(value || '').trim();
 
-  const appendMessages = useCallback(
-    (newMessages: Message[]) => {
-      setMessages(prev => [...prev, ...newMessages]);
+    if (!raw) {
+      return '';
+    }
 
-      if (isAtBottom) {
-        setTimeout(() => {
-          scrollToBottom(true);
-        }, 80);
-      } else {
-        setShowScrollButton(true);
-      }
-    },
-    [isAtBottom, scrollToBottom]
-  );
+    const cleaned = raw.replace(/[^\d+]/g, '');
 
-  const replaceMessageText = (messageId: string, text: string) => {
-    setMessages(prev =>
-      prev.map(message =>
-        message.id === messageId
-          ? {
-              ...message,
-              text,
-            }
-          : message
-      )
+    if (!cleaned) {
+      return '';
+    }
+
+    return cleaned.startsWith('+')
+      ? `+${cleaned.slice(1).replace(/\+/g, '')}`
+      : cleaned.replace(/\+/g, '');
+  };
+
+  const getBranchPhone = (user: any) => {
+    const branch =
+      user?.Branch ||
+      user?.branch ||
+      user?.SelectedBranch ||
+      user?.selectedBranch ||
+      user?.selected_branch ||
+      user?.Branches?.[0] ||
+      user?.branches?.[0];
+
+    return normalizePhoneNumber(
+      branch?.PhoneNumber ||
+        branch?.phoneNumber ||
+        branch?.Phone ||
+        branch?.phone ||
+        branch?.Tel ||
+        branch?.tel ||
+        branch?.TEL ||
+        branch?.Mobile ||
+        branch?.mobile ||
+        branch?.Contact ||
+        branch?.contact
     );
-
-    if (isAtBottom) {
-      setTimeout(() => {
-        scrollToBottom(true);
-      }, 80);
-    } else {
-      setShowScrollButton(true);
-    }
   };
 
-  const sendToLocalAi = async (text: string) => {
-    const thinkingMessage = createMessage('ai', 'Thinking...', 'system');
+  const handlePromotionPress = () => {
+    Alert.alert('Thông báo', 'Coming soon');
+  };
 
-    appendMessages([thinkingMessage]);
-    setIsAiThinking(true);
-
+  const handleBuyPress = async () => {
     try {
-      const reply = await generateLocalAiReply(text);
+      const latestUser = await getUserInfo();
+      const phoneNumber = getBranchPhone(latestUser || userInfo);
 
-      replaceMessageText(
-        thinkingMessage.id,
-        reply || 'Can you tell me more?'
-      );
-    } catch (error) {
-      console.error(error);
-
-      replaceMessageText(
-        thinkingMessage.id,
-        'Sorry, I could not load the local AI model. Please check the model file in Settings and try again.'
-      );
-    } finally {
-      setIsAiThinking(false);
-    }
-  };
-
-  const sendTextMessage = async () => {
-    const text = inputText.trim();
-
-    if (!text || isAiThinking || isRecording) return;
-
-    const userMessage = createMessage('user', text);
-
-    setInputText('');
-    appendMessages([userMessage]);
-
-    await sendToLocalAi(text);
-  };
-
-  const startRecording = async () => {
-    try {
-      if (isAiThinking) return;
-
-      const permission = await Audio.requestPermissionsAsync();
-
-      if (!permission.granted) {
-        Alert.alert('Microphone permission', 'Please allow microphone access.');
+      if (!phoneNumber) {
+        Alert.alert(
+          'Thông báo',
+          'Chưa có số điện thoại của chi nhánh. Vui lòng chọn cửa hàng trước.'
+        );
         return;
       }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
+      const phoneUrl = `tel:${phoneNumber}`;
+      const canCall = await Linking.canOpenURL(phoneUrl);
 
-      const result = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-
-      setRecording(result.recording);
-      setIsRecording(true);
-    } catch (error) {
-      console.error(error);
-      Alert.alert('Error', 'Could not start recording.');
-    }
-  };
-
-  const stopRecording = async () => {
-    try {
-      if (!recording) return;
-
-      await recording.stopAndUnloadAsync();
-
-      const uri = recording.getURI();
-
-      setRecording(null);
-      setIsRecording(false);
-
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-      });
-
-      console.log('Recorded audio uri:', uri);
-
-      const userVoiceMessage = createMessage(
-        'user',
-        'Voice message recorded. Speech-to-text will be connected in the next step.',
-        'voice'
-      );
-
-      appendMessages([userVoiceMessage]);
-
-      await sendToLocalAi(
-        'The user sent a voice message. Speech-to-text is not connected yet. Ask the user to type or wait for voice transcription.'
-      );
-    } catch (error) {
-      console.error(error);
-      Alert.alert('Error', 'Could not stop recording.');
-
-      setRecording(null);
-      setIsRecording(false);
-    }
-  };
-
-  const toggleRecording = () => {
-    if (isAiThinking) return;
-
-    if (isRecording) {
-      stopRecording();
-    } else {
-      startRecording();
-    }
-  };
-
-  const clearConversation = async () => {
-    try {
-      if (recording) {
-        await recording.stopAndUnloadAsync();
+      if (!canCall) {
+        Alert.alert('Thông báo', `Không thể gọi số ${phoneNumber}`);
+        return;
       }
+
+      await Linking.openURL(phoneUrl);
     } catch (error) {
-      console.error(error);
+      console.log('[HOME_BUY_CALL_ERROR]', error);
+      Alert.alert('Thông báo', 'Không thể thực hiện cuộc gọi');
     }
-
-    setRecording(null);
-    setIsRecording(false);
-    setIsAiThinking(false);
-    setMessages(createInitialMessages());
-    setInputText('');
-
-    setTimeout(() => {
-      scrollToBottom(false);
-    }, 80);
   };
 
-  const openSettings = async () => {
-    try {
-      if (recording) {
-        await recording.stopAndUnloadAsync();
+  const handleAccountPress = () => {
+    if (!userInfo?.id) {
+      router.push('/login');
+      return;
+    }
+
+    router.push('/profile-edit');
+  };
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function bootstrapHome() {
+      try {
+        await loadUserFromStorage();
+
+        if (!mounted) {
+          return;
+        }
+
+        setAuthReady(true);
+
+        /**
+         * Home là public nên luôn load dữ liệu,
+         * kể cả khi chưa đăng nhập.
+         */
+        await fetchHome();
+      } catch (error) {
+        console.log('[HOME_BOOTSTRAP_ERROR]', error);
+
+        if (mounted) {
+          setHomeError('Không tải được dữ liệu trang chủ');
+          setLoading(false);
+          setAuthReady(true);
+        }
       }
-    } catch (error) {
-      console.error(error);
     }
 
-    setRecording(null);
-    setIsRecording(false);
-    setIsAiThinking(false);
-    setIsSettingsMode(true);
-    setIsModelReady(false);
+    bootstrapHome();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!authReady) {
+        return;
+      }
+
+      loadUserFromStorage();
+    }, [authReady])
+  );
+
+  const onRefresh = async () => {
+    await fetchHome(true);
   };
 
-  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+  const avatarUrl =
+    userInfo?.Avatar?.url
+      ? userInfo.Avatar.url.startsWith('http')
+        ? userInfo.Avatar.url
+        : `${API_BASE_URL}${userInfo.Avatar.url}`
+      : '';
 
-    const paddingToBottom = 80;
-    const isNearBottom =
-      layoutMeasurement.height + contentOffset.y >=
-      contentSize.height - paddingToBottom;
+  const greeting = getGreeting();
 
-    setIsAtBottom(isNearBottom);
+  const greetingText =
+    `${greeting.text} ${greeting.icon}`;
 
-    if (isNearBottom) {
-      setShowScrollButton(false);
-    }
-  };
+  const accountSubtitle = userInfo?.id
+    ? 'Xem thông tin cá nhân'
+    : 'Đăng nhập để xem thông tin cá nhân';
 
-  const formatTime = (timestamp: number) => {
-    const date = new Date(timestamp);
-
-    return date.toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
+  const goToCategoryDetail = (category: CategoryGridItem) => {
+    router.push({
+      pathname: '/category-detail',
+      params: {
+        categoryId: String(category.id),
+        level1Url: category.url || '',
+      },
     });
   };
 
-  if (!isModelReady) {
-    return (
-      <ModelCheckScreen
-        autoContinue={!isSettingsMode}
-        onReady={() => {
-          setIsSettingsMode(false);
-          setIsModelReady(true);
-        }}
-      />
-    );
-  }
+  const renderBlock = (block: HomePageBlock) => {
+    switch (block.type) {
+      case 'banner-slider':
+        return (
+          <BannerSlider
+            key={`${block.type}-${block.id}`}
+            banners={block.banners}
+          />
+        );
+
+      case 'grid-category':
+        return (
+          <CategoryGrid
+            key={`${block.type}-${block.id}`}
+            categories={block.categories as CategoryGridItem[]}
+            onPressCategory={goToCategoryDetail}
+          />
+        );
+
+      case 'single-image':
+        return (
+          <SingleImage
+            key={`${block.type}-${block.id}`}
+            imageUrl={block.image.imageUrl}
+          />
+        );
+
+      case 'feature-category':
+        return (
+          <FeatureCategorySection
+            key={`${block.type}-${block.id}`}
+            section={block.section}
+          />
+        );
+
+      default:
+        return null;
+    }
+  };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.select({
-        ios: 'padding',
-        android: undefined,
-      })}
-    >
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Biilang</Text>
-          <Text style={styles.subtitle}>
-            {isAiThinking
-              ? 'AI is thinking...'
-              : isRecording
-                ? 'Recording...'
-                : 'AI Speaking English'}
-          </Text>
-        </View>
-
-        <View style={styles.headerActions}>
-          <Pressable style={styles.settingsButton} onPress={openSettings}>
-            <Text style={styles.settingsButtonText}>Settings</Text>
-          </Pressable>
-
-          <Pressable style={styles.clearButton} onPress={clearConversation}>
-            <Text style={styles.clearButtonText}>Clear</Text>
-          </Pressable>
-        </View>
-      </View>
-
-      <View style={styles.chatWrapper}>
-        <ScrollView
-          ref={scrollViewRef}
-          style={styles.chatBox}
-          contentContainerStyle={styles.chatContent}
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
-          onContentSizeChange={() => {
-            if (isAtBottom) {
-              scrollToBottom(false);
-            } else {
-              setShowScrollButton(true);
-            }
-          }}
-          keyboardShouldPersistTaps="handled"
-        >
-          {messages.map(message => {
-            const isUser = message.role === 'user';
-            const isSystem = message.type === 'system';
-
-            return (
-              <View
-                key={message.id}
-                style={[
-                  styles.messageRow,
-                  isUser ? styles.userMessageRow : styles.aiMessageRow,
-                ]}
-              >
-                <View
-                  style={[
-                    styles.messageBubble,
-                    isUser ? styles.userBubble : styles.aiBubble,
-                    isSystem && styles.systemBubble,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.messageText,
-                      isUser ? styles.userMessageText : styles.aiMessageText,
-                      isSystem && styles.systemMessageText,
-                    ]}
-                  >
-                    {message.text}
-                  </Text>
-
-                  <View style={styles.messageFooter}>
-                    {message.type === 'voice' && (
-                      <Text
-                        style={[
-                          styles.messageMeta,
-                          isUser && styles.userMessageMeta,
-                        ]}
-                      >
-                        Voice
-                      </Text>
-                    )}
-
-                    <Text
-                      style={[
-                        styles.messageMeta,
-                        isUser && styles.userMessageMeta,
-                      ]}
-                    >
-                      {formatTime(message.createdAt)}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            );
-          })}
-        </ScrollView>
-
-        {showScrollButton && (
-          <Pressable
-            style={styles.scrollButton}
-            onPress={() => scrollToBottom(true)}
-          >
-            <Text style={styles.scrollButtonText}>↓ New message</Text>
-          </Pressable>
-        )}
-      </View>
-
-      <View style={styles.inputPanel}>
-        <Pressable
-          style={[
-            styles.microButton,
-            isRecording && styles.microButtonRecording,
-            isAiThinking && styles.disabledButton,
-          ]}
-          onPress={toggleRecording}
-          disabled={isAiThinking}
-        >
-          <Text style={styles.microButtonText}>
-            {isRecording ? '■' : '🎙'}
-          </Text>
-        </Pressable>
-
-        <TextInput
-          value={inputText}
-          onChangeText={setInputText}
-          placeholder={
-            isAiThinking
-              ? 'Please wait for AI reply...'
-              : isRecording
-                ? 'Recording...'
-                : 'Type your message...'
-          }
-          placeholderTextColor="#9ca3af"
-          style={styles.input}
-          multiline
-          maxLength={500}
-          editable={!isAiThinking && !isRecording}
-          returnKeyType="send"
-          onSubmitEditing={sendTextMessage}
+    <SafeAreaView edges={['top']} style={styles.safe}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.primary}
+          />
+        }
+      >
+        <HomeHeader
+          onPressSearch={() => router.push('/search')}
+          onPressNotification={() => router.push('/(tabs)/notification')}
         />
 
-        <Pressable
-          style={[
-            styles.sendButton,
-            (!inputText.trim() || isAiThinking || isRecording) &&
-              styles.sendButtonDisabled,
-          ]}
-          onPress={sendTextMessage}
-          disabled={!inputText.trim() || isAiThinking || isRecording}
-        >
-          <Text style={styles.sendButtonText}>Send</Text>
-        </Pressable>
-      </View>
+        <View style={styles.quickActionRow}>
+          <QuickAction
+            icon="pricetag"
+            label="Ưu đãi"
+            onPress={handlePromotionPress}
+          />
 
-      {isRecording && (
-        <View style={styles.recordingBar}>
-          <Text style={styles.recordingText}>
-            Recording... tap the red button to stop.
-          </Text>
+          <QuickAction
+            icon="call"
+            label="Thu mua"
+            onPress={handleBuyPress}
+          />
+
+          <QuickAction
+            icon="storefront"
+            label="Cửa hàng"
+            onPress={() => router.push('/select-branch')}
+          />
+
+          <QuickAction
+            icon="newspaper"
+            label="Tin tức"
+            onPress={() => router.push('/news')}
+          />
         </View>
-      )}
-    </KeyboardAvoidingView>
+
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={styles.accountBanner}
+          onPress={handleAccountPress}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.accountTitle}>
+              {greetingText}
+            </Text>
+
+            <Text style={styles.accountSubtitle}>
+              {accountSubtitle}
+            </Text>
+          </View>
+
+          {avatarUrl ? (
+            <Image
+              key={avatarUrl}
+              source={{ uri: avatarUrl }}
+              style={styles.avatarImage}
+              width={62}
+              height={62}
+            />
+          ) : (
+            <Ionicons
+              name="person-circle-outline"
+              size={62}
+              color="#FFFFFF"
+            />
+          )}
+        </TouchableOpacity>
+
+        {loading ? (
+          <View style={styles.stateBox}>
+            <ActivityIndicator size="large" color={theme.primary} />
+            <Text style={styles.stateText}>Đang tải trang chủ...</Text>
+          </View>
+        ) : homeError ? (
+          <View style={styles.stateBox}>
+            <Text style={styles.errorText}>{homeError}</Text>
+          </View>
+        ) : (
+          blocks.map(renderBlock)
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function QuickAction({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress?: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      style={styles.quickActionButton}
+      onPress={onPress}
+    >
+      <Ionicons name={icon} size={18} color="#FFFFFF" />
+      <Text style={styles.quickActionText}>{label}</Text>
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safe: {
     flex: 1,
-    backgroundColor: '#f7f7f7',
+    backgroundColor: theme.background,
   },
+
+  avatarImage: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: '#FFFFFF20',
+  },
+
+  scrollContent: {
+    paddingBottom: 120,
+  },
+
   header: {
-    paddingTop: 54,
-    paddingHorizontal: 18,
-    paddingBottom: 14,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    paddingHorizontal: Layout.screenHorizontalPadding,
+    paddingTop: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  searchBox: {
+    flex: 1,
+    height: 58,
+    backgroundColor: theme.surface,
+    borderRadius: Radius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: theme.primarySoft,
+  },
+
+  searchInput: {
+    flex: 1,
+    fontFamily: Fonts.medium,
+    fontSize: FontSizes.lg,
+    color: theme.primary,
+    padding: 0,
+  },
+
+  headerIcon: {
+    width: 42,
+    height: 58,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  quickActionRow: {
+    paddingHorizontal: Layout.screenHorizontalPadding,
+    marginTop: Spacing.lg,
+    flexDirection: 'row',
+    gap: 8,
+  },
+
+  quickActionButton: {
+    flex: 1,
+    height: 44,
+    borderRadius: Radius.md,
+    backgroundColor: theme.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+
+  quickActionText: {
+    fontFamily: Fonts.bold,
+    fontSize: FontSizes.sm,
+    color: '#FFFFFF',
+  },
+
+  accountBanner: {
+    marginHorizontal: Layout.screenHorizontalPadding,
+    marginTop: Spacing.md,
+    minHeight: 72,
+    borderRadius: Radius.md,
+    backgroundColor: theme.primary,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+
+  accountTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: FontSizes.xl,
+    color: '#FFFFFF',
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#111827',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#6b7280',
+
+  accountSubtitle: {
     marginTop: 2,
+    fontFamily: Fonts.regular,
+    fontSize: FontSizes.sm,
+    color: '#FFFFFF',
   },
-  settingsButton: {
-    backgroundColor: '#dbeafe',
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 999,
-  },
-  settingsButtonText: {
-    color: '#1d4ed8',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  clearButton: {
-    backgroundColor: '#f3f4f6',
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 999,
-  },
-  clearButtonText: {
-    color: '#374151',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  chatWrapper: {
-    flex: 1,
-    position: 'relative',
-  },
-  chatBox: {
-    flex: 1,
-  },
-  chatContent: {
-    padding: 16,
-    paddingBottom: 24,
-  },
-  messageRow: {
-    width: '100%',
-    marginBottom: 12,
-  },
-  aiMessageRow: {
-    alignItems: 'flex-start',
-  },
-  userMessageRow: {
-    alignItems: 'flex-end',
-  },
-  messageBubble: {
-    maxWidth: '84%',
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-  },
-  aiBubble: {
-    backgroundColor: '#ffffff',
-    borderTopLeftRadius: 6,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  userBubble: {
-    backgroundColor: '#111827',
-    borderTopRightRadius: 6,
-  },
-  systemBubble: {
-    backgroundColor: '#f9fafb',
-  },
-  messageText: {
-    fontSize: 16,
-    lineHeight: 23,
-  },
-  aiMessageText: {
-    color: '#111827',
-  },
-  userMessageText: {
-    color: '#ffffff',
-  },
-  systemMessageText: {
-    color: '#6b7280',
-    fontStyle: 'italic',
-  },
-  messageFooter: {
-    marginTop: 7,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  messageMeta: {
-    fontSize: 11,
-    color: '#9ca3af',
-  },
-  userMessageMeta: {
-    color: '#d1d5db',
-  },
-  scrollButton: {
-    position: 'absolute',
-    bottom: 14,
-    alignSelf: 'center',
-    backgroundColor: '#111827',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 999,
-  },
-  scrollButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  inputPanel: {
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 12,
-    backgroundColor: '#ffffff',
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-  },
-  microButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 999,
-    backgroundColor: '#e5e7eb',
-    alignItems: 'center',
+
+  stateBox: {
+    height: 184,
+    marginHorizontal: Layout.screenHorizontalPadding,
+    marginTop: Spacing.lg,
+    borderRadius: Radius.lg,
+    backgroundColor: theme.surface,
     justifyContent: 'center',
-  },
-  microButtonRecording: {
-    backgroundColor: '#dc2626',
-  },
-  microButtonText: {
-    color: '#111827',
-    fontSize: 20,
-    fontWeight: '900',
-  },
-  input: {
-    flex: 1,
-    maxHeight: 120,
-    minHeight: 46,
-    borderRadius: 18,
-    backgroundColor: '#f3f4f6',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: '#111827',
-    fontSize: 16,
-  },
-  sendButton: {
-    minWidth: 64,
-    height: 46,
-    borderRadius: 999,
-    backgroundColor: '#2563eb',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 14,
   },
-  sendButtonDisabled: {
-    backgroundColor: '#bfdbfe',
+
+  stateText: {
+    marginTop: Spacing.md,
+    fontFamily: Fonts.regular,
+    fontSize: FontSizes.md,
+    color: theme.textSecondary,
   },
-  sendButtonText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  disabledButton: {
-    opacity: 0.6,
-  },
-  recordingBar: {
-    backgroundColor: '#fee2e2',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderTopWidth: 1,
-    borderTopColor: '#fecaca',
-  },
-  recordingText: {
-    textAlign: 'center',
-    color: '#991b1b',
-    fontSize: 13,
-    fontWeight: '700',
+
+  errorText: {
+    fontFamily: Fonts.bold,
+    fontSize: FontSizes.md,
+    color: theme.primary,
   },
 });

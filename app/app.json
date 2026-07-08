@@ -51,7 +51,9 @@
         {
           "microphonePermission": "Allow Biilang to access your microphone so you can practice speaking English."
         }
-      ]
+      ],
+      "expo-secure-store",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,
