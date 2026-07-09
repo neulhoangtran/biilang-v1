@@ -81,14 +81,6 @@ export default function RootLayout() {
           }}
         />
 
-        <Stack.Screen
-          name="modal"
-          options={{
-            presentation: 'modal',
-            title: 'Modal',
-          }}
-        />
-
         <Stack.Screen name="category-detail" options={{ headerShown: false }} />
         <Stack.Screen name="product-detail" options={{ headerShown: false }} />
         <Stack.Screen name="search" options={{ headerShown: false }} />

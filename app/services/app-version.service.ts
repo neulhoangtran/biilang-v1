@@ -76,7 +76,7 @@ export function getCurrentAppVersion() {
  */
 export async function fetchLatestAppVersionConfig(): Promise<AppVersionConfig> {
   return {
-    latestVersion: '1.0.1',
+    latestVersion: '1.0.0',
     requiredUpgrade: true,
     title: 'Cần cập nhật phiên bản mới',
     message:
