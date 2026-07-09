@@ -1,0 +1,84 @@
+{
+  "kind": "collectionType",
+  "collectionName": "user_activities",
+  "info": {
+    "singularName": "user-activity",
+    "pluralName": "user-activities",
+    "displayName": "UserActivity"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "User": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user",
+      "inversedBy": "user_activities"
+    },
+    "UserId": {
+      "type": "integer"
+    },
+    "UserEmail": {
+      "type": "string"
+    },
+    "UserName": {
+      "type": "string"
+    },
+    "GuestId": {
+      "type": "string"
+    },
+    "DeviceId": {
+      "type": "string"
+    },
+    "EventName": {
+      "type": "string",
+      "required": true
+    },
+    "ScreenName": {
+      "type": "string"
+    },
+    "Path": {
+      "type": "string"
+    },
+    "Method": {
+      "type": "string"
+    },
+    "Status": {
+      "type": "integer"
+    },
+    "DurationMs": {
+      "type": "integer"
+    },
+    "RequestId": {
+      "type": "string"
+    },
+    "Platform": {
+      "type": "enumeration",
+      "enum": [
+        "ios",
+        "android",
+        "web",
+        "unknown"
+      ],
+      "default": "unknown"
+    },
+    "AppVersion": {
+      "type": "string"
+    },
+    "Ip": {
+      "type": "string"
+    },
+    "UserAgent": {
+      "type": "text"
+    },
+    "OccurredAt": {
+      "type": "datetime",
+      "required": true
+    },
+    "Metadata": {
+      "type": "json"
+    }
+  }
+}

@@ -152,6 +152,12 @@
       "relation": "manyToMany",
       "target": "api::sms-message.sms-message",
       "inversedBy": "Users"
+    },
+    "user_activities": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::user-activity.user-activity",
+      "mappedBy": "User"
     }
   }
 }

@@ -976,6 +976,59 @@ export interface ApiSmsMessageSmsMessage extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiUserActivityUserActivity
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'user_activities';
+  info: {
+    displayName: 'UserActivity';
+    pluralName: 'user-activities';
+    singularName: 'user-activity';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    AppVersion: Schema.Attribute.String;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    DeviceId: Schema.Attribute.String;
+    DurationMs: Schema.Attribute.Integer;
+    EventName: Schema.Attribute.String & Schema.Attribute.Required;
+    GuestId: Schema.Attribute.String;
+    Ip: Schema.Attribute.String;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::user-activity.user-activity'
+    > &
+      Schema.Attribute.Private;
+    Metadata: Schema.Attribute.JSON;
+    Method: Schema.Attribute.String;
+    OccurredAt: Schema.Attribute.DateTime & Schema.Attribute.Required;
+    Path: Schema.Attribute.String;
+    Platform: Schema.Attribute.Enumeration<
+      ['ios', 'android', 'web', 'unknown']
+    > &
+      Schema.Attribute.DefaultTo<'unknown'>;
+    publishedAt: Schema.Attribute.DateTime;
+    RequestId: Schema.Attribute.String;
+    ScreenName: Schema.Attribute.String;
+    Status: Schema.Attribute.Integer;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    User: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
+    UserAgent: Schema.Attribute.Text;
+    UserEmail: Schema.Attribute.String;
+    UserId: Schema.Attribute.Integer;
+    UserName: Schema.Attribute.String;
+  };
+}
+
 export interface ApiVoucherHistoryVoucherHistory
   extends Struct.CollectionTypeSchema {
   collectionName: 'voucher_histories';
@@ -1609,6 +1662,10 @@ export interface PluginUsersPermissionsUser
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    user_activities: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::user-activity.user-activity'
+    >;
     username: Schema.Attribute.String &
       Schema.Attribute.Required &
       Schema.Attribute.Unique &
@@ -1645,6 +1702,7 @@ declare module '@strapi/strapi' {
       'api::notification.notification': ApiNotificationNotification;
       'api::product.product': ApiProductProduct;
       'api::sms-message.sms-message': ApiSmsMessageSmsMessage;
+      'api::user-activity.user-activity': ApiUserActivityUserActivity;
       'api::voucher-history.voucher-history': ApiVoucherHistoryVoucherHistory;
       'api::voucher.voucher': ApiVoucherVoucher;
       'api::wishlist.wishlist': ApiWishlistWishlist;

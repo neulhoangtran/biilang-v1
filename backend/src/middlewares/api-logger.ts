@@ -64,6 +64,44 @@ function getSafeUser(ctx: any) {
   };
 }
 
+async function createUserActivitySafely({
+  ctx,
+  status,
+  durationMs,
+  error,
+}: {
+  ctx: any;
+  status: number;
+  durationMs: number;
+  error?: any;
+}) {
+  try {
+    await strapi
+      .service('api::general-api.user-activity')
+      .createRequestActivity({
+        ctx,
+        status,
+        durationMs,
+        error,
+      });
+  } catch (activityError: any) {
+    /**
+     * Không được để lỗi ghi activity làm chết API chính.
+     */
+    strapi.log.error('[API_LOGGER_CREATE_USER_ACTIVITY_FAILED]', {
+      method: ctx.method,
+      path: ctx.path,
+      status,
+      durationMs,
+      requestId: ctx.state?.requestId,
+      userId: ctx.state?.user?.id,
+      errorName: activityError?.name,
+      errorMessage: activityError?.message || String(activityError),
+      errorStack: activityError?.stack,
+    });
+  }
+}
+
 export default () => {
   return async (ctx: any, next: any) => {
     const startedAt = Date.now();
@@ -93,6 +131,9 @@ export default () => {
     try {
       await next();
 
+      const durationMs = Date.now() - startedAt;
+      const status = Number(ctx.status || 200);
+
       if (!skipLog) {
         systemInfo({
           scope: 'api',
@@ -102,12 +143,25 @@ export default () => {
           data: {
             method: ctx.method,
             path: ctx.path,
-            status: ctx.status,
-            durationMs: Date.now() - startedAt,
+            status,
+            durationMs,
           },
         });
       }
+
+      /**
+       * Ghi activity sau khi request xử lý xong.
+       * Service tự lọc path cần track.
+       */
+      await createUserActivitySafely({
+        ctx,
+        status,
+        durationMs,
+      });
     } catch (error: any) {
+      const durationMs = Date.now() - startedAt;
+      const status = Number(error?.status || ctx.status || 500);
+
       if (!skipLog) {
         systemError({
           scope: 'error',
@@ -117,14 +171,24 @@ export default () => {
           data: {
             method: ctx.method,
             path: ctx.path,
-            status: error?.status || ctx.status || 500,
-            durationMs: Date.now() - startedAt,
+            status,
+            durationMs,
             errorName: error?.name,
             errorMessage: error?.message || String(error),
             errorStack: error?.stack,
           },
         });
       }
+
+      /**
+       * Request lỗi vẫn ghi activity để sau này biết user gặp lỗi ở đâu.
+       */
+      await createUserActivitySafely({
+        ctx,
+        status,
+        durationMs,
+        error,
+      });
 
       throw error;
     }
