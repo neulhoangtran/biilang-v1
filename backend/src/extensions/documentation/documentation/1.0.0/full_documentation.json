@@ -14,7 +14,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "x-generation-date": "2026-07-09T15:00:46.755Z"
+    "x-generation-date": "2026-07-09T15:33:51.653Z"
   },
   "x-strapi-config": {
     "plugins": [
@@ -13459,12 +13459,30 @@
         ],
         "properties": {
           "data": {
+            "required": [
+              "AppVersion",
+              "IsRequireUpdate",
+              "AndroidUrlDownload",
+              "IosUrlDownload"
+            ],
             "type": "object",
             "properties": {
               "RegisterMessage": {
                 "type": "string"
               },
               "ReRegisterMessage": {
+                "type": "string"
+              },
+              "AppVersion": {
+                "type": "string"
+              },
+              "IsRequireUpdate": {
+                "type": "boolean"
+              },
+              "AndroidUrlDownload": {
+                "type": "string"
+              },
+              "IosUrlDownload": {
                 "type": "string"
               },
               "locale": {
@@ -13525,6 +13543,12 @@
       },
       "Configuration": {
         "type": "object",
+        "required": [
+          "AppVersion",
+          "IsRequireUpdate",
+          "AndroidUrlDownload",
+          "IosUrlDownload"
+        ],
         "properties": {
           "id": {
             "oneOf": [
@@ -13543,6 +13567,18 @@
             "type": "string"
           },
           "ReRegisterMessage": {
+            "type": "string"
+          },
+          "AppVersion": {
+            "type": "string"
+          },
+          "IsRequireUpdate": {
+            "type": "boolean"
+          },
+          "AndroidUrlDownload": {
+            "type": "string"
+          },
+          "IosUrlDownload": {
             "type": "string"
           },
           "createdAt": {
@@ -14265,6 +14301,18 @@
                   "type": "string"
                 },
                 "ReRegisterMessage": {
+                  "type": "string"
+                },
+                "AppVersion": {
+                  "type": "string"
+                },
+                "IsRequireUpdate": {
+                  "type": "boolean"
+                },
+                "AndroidUrlDownload": {
+                  "type": "string"
+                },
+                "IosUrlDownload": {
                   "type": "string"
                 },
                 "createdAt": {

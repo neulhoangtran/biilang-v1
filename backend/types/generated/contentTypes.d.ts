@@ -559,9 +559,17 @@ export interface ApiConfigurationConfiguration extends Struct.SingleTypeSchema {
     draftAndPublish: true;
   };
   attributes: {
+    AndroidUrlDownload: Schema.Attribute.String & Schema.Attribute.Required;
+    AppVersion: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'1.0.0'>;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    IosUrlDownload: Schema.Attribute.String & Schema.Attribute.Required;
+    IsRequireUpdate: Schema.Attribute.Boolean &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<false>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',

@@ -1,5 +1,6 @@
 const CONFIGURATION_UID =
   'api::configuration.configuration';
+
 const CONFIGURATION_CACHE_MS = 60 * 1000;
 
 export type ConfigurationTemplateValues =
@@ -8,6 +9,13 @@ export type ConfigurationTemplateValues =
 type ConfigurationCache = {
   expiredAt: number;
   data: Record<string, any> | null;
+};
+
+export type AppVersionConfiguration = {
+  appVersion: string;
+  isRequireUpdate: boolean;
+  androidUrlDownload: string;
+  iosUrlDownload: string;
 };
 
 let configurationCache: ConfigurationCache = {
@@ -99,6 +107,10 @@ export async function getConfiguration() {
   let data: Record<string, any> | null = null;
 
   try {
+    /**
+     * Nếu Configuration đang bật draftAndPublish,
+     * dòng này sẽ lấy bản đã publish.
+     */
     data = await strapi
       .documents(CONFIGURATION_UID)
       .findFirst({
@@ -111,6 +123,10 @@ export async function getConfiguration() {
     );
 
     try {
+      /**
+       * Fallback cho trường hợp documents API lỗi
+       * hoặc config không bật draftAndPublish.
+       */
       const fallbackData =
         await strapi.entityService.findMany(
           CONFIGURATION_UID as any
@@ -175,4 +191,37 @@ export async function getRenderedConfigurationValue({
     template,
     values
   );
+}
+
+export async function getAppVersionConfiguration(): Promise<AppVersionConfiguration> {
+  const [
+    appVersion,
+    isRequireUpdate,
+    androidUrlDownload,
+    iosUrlDownload,
+  ] = await Promise.all([
+    getConfigurationValue<string>(
+      'AppVersion',
+      '1.0.0'
+    ),
+    getConfigurationValue<boolean>(
+      'IsRequireUpdate',
+      false
+    ),
+    getConfigurationValue<string>(
+      'AndroidUrlDownload',
+      ''
+    ),
+    getConfigurationValue<string>(
+      'IosUrlDownload',
+      ''
+    ),
+  ]);
+
+  return {
+    appVersion,
+    isRequireUpdate: Boolean(isRequireUpdate),
+    androidUrlDownload,
+    iosUrlDownload,
+  };
 }
