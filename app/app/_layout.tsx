@@ -9,6 +9,8 @@ import FloatingChatButton from '@/components/FloatingChatButton';
 import { initAppSession } from '@/services/app-storage.service';
 import { setupNotificationListeners } from '@/services/notification.service';
 
+import AppUpgradeModal from '@/components/AppUpgradeModal';
+
 export const unstable_settings = {
   initialRouteName: 'index',
 };
@@ -107,6 +109,7 @@ export default function RootLayout() {
       </Stack>
 
       <FloatingChatButton />
+      <AppUpgradeModal />
       <StatusBar style="auto" />
     </ThemeProvider>
   );
