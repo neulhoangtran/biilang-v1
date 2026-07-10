@@ -50,3 +50,11 @@ npx expo login
 
 
 rm -rf .cache build dist node_modules/.cache node_modules package-lock.json yarn.lock pnpm-lock.yaml
+
+## dọn dẹp trước khi build 
+cd /var/www/billang
+
+docker compose stop strapi
+docker compose rm -f strapi
+docker compose build --no-cache --pull strapi
+docker compose up -d --no-deps --force-recreate strapi
