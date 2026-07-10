@@ -22,7 +22,7 @@ COPY package.json package-lock.json ./
 
 RUN npm install -g node-gyp
 RUN npm config set fetch-retry-maxtimeout 600000 -g
-RUN npm ci --omit=dev
+RUN npm install --only=production
 
 ENV PATH=/opt/node_modules/.bin:$PATH
 
